@@ -36,12 +36,26 @@ function AppInner() {
   const { humanVerified } = useAppContext();
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-  if (!humanVerified) {
-    return <HumanVerification />;
-  }
-
   return (
     <WouterRouter base={basePath}>
+      <Switch>
+        <Route path="/sign-in/*?">
+          <AuthPage kind="sign-in" basePath={basePath} />
+        </Route>
+        <Route path="/sign-up/*?">
+          <AuthPage kind="sign-up" basePath={basePath} />
+        </Route>
+        <Route>
+          {humanVerified ? <AppShell /> : <HumanVerification />}
+        </Route>
+      </Switch>
+    </WouterRouter>
+  );
+}
+
+function AppShell() {
+  return (
+    <>
       <SeoManager />
       <div
         className="min-h-dvh w-full max-w-md mx-auto flex flex-col relative overflow-x-hidden"
@@ -50,12 +64,6 @@ function AppInner() {
         <Header />
         <main className="flex-1 overflow-y-auto pt-14 pb-20">
           <Switch>
-            <Route path="/sign-in/*?">
-              <AuthPage kind="sign-in" basePath={basePath} />
-            </Route>
-            <Route path="/sign-up/*?">
-              <AuthPage kind="sign-up" basePath={basePath} />
-            </Route>
             <Route path="/" component={Home} />
             <Route path="/tournaments" component={Tournaments} />
             <Route path="/tournaments/:id/edit" component={EditTournament} />
@@ -75,7 +83,7 @@ function AppInner() {
         </main>
         <BottomNav />
       </div>
-    </WouterRouter>
+    </>
   );
 }
 

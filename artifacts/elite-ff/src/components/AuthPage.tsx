@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowLeft, Loader2, ShieldCheck } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { ArrowLeft, Loader2, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { isSupabaseConfigured } from "@/lib/auth";
@@ -11,12 +11,56 @@ interface Props {
 
 export default function AuthPage({ basePath }: Props) {
   const [, navigate] = useLocation();
-  const { authReady, signInWithGoogle, authError } = useAuth();
+  const { authReady, signIn, signUp, signInWithGoogle, authError, clearAuthError } = useAuth();
+  const [mode, setMode] = useState<"sign-in" | "sign-up">(window.location.pathname.includes("sign-up") ? "sign-up" : "sign-in");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   function continueWithGoogle() {
+    clearAuthError();
     setRedirecting(true);
     signInWithGoogle();
+  }
+
+  function switchMode(nextMode: "sign-in" | "sign-up") {
+    clearAuthError();
+    setSuccessMessage(null);
+    setMode(nextMode);
+    window.history.replaceState({}, "", `${basePath}/${nextMode}`);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    clearAuthError();
+    setSuccessMessage(null);
+
+    if (mode === "sign-up" && username.trim().length < 3) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      if (mode === "sign-up") {
+        const needsEmailConfirmation = await signUp(email.trim(), password, username.trim());
+        if (needsEmailConfirmation) {
+          setSuccessMessage("Account created. Check your email to confirm your account, then sign in.");
+          setPassword("");
+        } else {
+          window.location.assign(basePath || "/");
+        }
+      } else {
+        await signIn(email.trim(), password);
+        window.location.assign(basePath || "/");
+      }
+    } catch {
+      // AuthContext exposes the provider's error message in authError.
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (!isSupabaseConfigured()) {
@@ -36,7 +80,7 @@ export default function AuthPage({ basePath }: Props) {
   return (
     <div className="min-h-dvh flex items-center justify-center px-4 py-8" style={{ background: "var(--th-bg)" }}>
       <div className="w-full max-w-md">
-        <button onClick={() => navigate(basePath || "/")} className="flex items-center gap-2 text-sm mb-5" style={{ color: "var(--th-muted)" }}>
+        <button type="button" onClick={() => navigate(basePath || "/")} className="flex items-center gap-2 text-sm mb-5" style={{ color: "var(--th-muted)" }}>
           <ArrowLeft size={16} /> Back to Elite FF
         </button>
         <div className="rounded-3xl p-6" style={{ background: "var(--th-card)", border: "1px solid var(--th-border)", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
@@ -46,15 +90,97 @@ export default function AuthPage({ basePath }: Props) {
             </div>
             <div>
               <div className="font-display font-black text-2xl text-foreground">Welcome to Elite FF</div>
-              <div className="text-xs mt-1" style={{ color: "var(--th-muted)" }}>Sign in securely with your Google account</div>
+              <div className="text-xs mt-1" style={{ color: "var(--th-muted)" }}>
+                {mode === "sign-in" ? "Sign in to continue to your tournaments" : "Create your player account"}
+              </div>
             </div>
           </div>
 
           <p className="text-sm leading-6 mb-5" style={{ color: "var(--th-muted)" }}>
-            Use your Google account to join tournaments, track results, and manage your player profile.
+            Join tournaments, track results, and manage your player profile from one secure account.
           </p>
-          {authError && <p className="text-xs font-semibold mb-4" style={{ color: "#ff6b35" }}>{authError}</p>}
+
+          <form onSubmit={handleSubmit} className="space-y-3.5">
+            {mode === "sign-up" && (
+              <label className="block">
+                <span className="sr-only">Username</span>
+                <div className="relative">
+                  <UserRound size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--th-muted)" }} />
+                  <input
+                    required
+                    minLength={3}
+                    value={username}
+                    onChange={event => setUsername(event.target.value)}
+                    placeholder="Username"
+                    autoComplete="username"
+                    className="w-full h-12 rounded-xl pl-10 pr-3 text-sm outline-none"
+                    style={{ background: "var(--th-bg)", border: "1px solid var(--th-border)", color: "var(--th-text)" }}
+                  />
+                </div>
+              </label>
+            )}
+            <label className="block">
+              <span className="sr-only">Email address</span>
+              <div className="relative">
+                <Mail size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--th-muted)" }} />
+                <input
+                  required
+                  type="email"
+                  value={email}
+                  onChange={event => setEmail(event.target.value)}
+                  placeholder="Email address"
+                  autoComplete="email"
+                  className="w-full h-12 rounded-xl pl-10 pr-3 text-sm outline-none"
+                  style={{ background: "var(--th-bg)", border: "1px solid var(--th-border)", color: "var(--th-text)" }}
+                />
+              </div>
+            </label>
+            <label className="block">
+              <span className="sr-only">Password</span>
+              <div className="relative">
+                <LockKeyhole size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--th-muted)" }} />
+                <input
+                  required
+                  minLength={6}
+                  type="password"
+                  value={password}
+                  onChange={event => setPassword(event.target.value)}
+                  placeholder="Password"
+                  autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+                  className="w-full h-12 rounded-xl pl-10 pr-3 text-sm outline-none"
+                  style={{ background: "var(--th-bg)", border: "1px solid var(--th-border)", color: "var(--th-text)" }}
+                />
+              </div>
+            </label>
+            {authError && (
+              <div role="alert" className="rounded-xl px-3 py-2.5 text-xs font-semibold" style={{ color: "#fecaca", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(248,113,113,0.25)" }}>
+                {authError}
+              </div>
+            )}
+            {successMessage && (
+              <div role="status" className="rounded-xl px-3 py-2.5 text-xs font-semibold" style={{ color: "#bbf7d0", background: "rgba(34,197,94,0.12)", border: "1px solid rgba(74,222,128,0.25)" }}>
+                {successMessage}
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={!authReady || submitting}
+              className="w-full h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ background: "var(--gradient-primary)", color: "#0a0e27" }}
+            >
+              {submitting && <Loader2 size={17} className="animate-spin" />}
+              {submitting ? "Please wait..." : mode === "sign-in" ? "Sign in" : "Create account"}
+            </button>
+          </form>
+
+          <div className="flex items-center gap-3 my-5">
+            <div className="h-px flex-1" style={{ background: "var(--th-border)" }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--th-dim)" }}>or</span>
+            <div className="h-px flex-1" style={{ background: "var(--th-border)" }} />
+          </div>
+
           <button
+            type="button"
             onClick={continueWithGoogle}
             disabled={!authReady || redirecting}
             className="w-full h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-3 disabled:opacity-60"
@@ -73,7 +199,18 @@ export default function AuthPage({ basePath }: Props) {
             {redirecting ? "Opening Google..." : "Continue with Google"}
           </button>
           <p className="text-[11px] text-center mt-4" style={{ color: "var(--th-dim)" }}>
-            You will be redirected to Google to continue.
+            Google sign-in is available when enabled in your Supabase project.
+          </p>
+          <p className="text-center text-xs mt-5" style={{ color: "var(--th-muted)" }}>
+            {mode === "sign-in" ? "New to Elite FF?" : "Already have an account?"}{" "}
+            <button
+              type="button"
+              onClick={() => switchMode(mode === "sign-in" ? "sign-up" : "sign-in")}
+              className="font-bold underline underline-offset-2"
+              style={{ color: "#ff6b35" }}
+            >
+              {mode === "sign-in" ? "Create an account" : "Sign in"}
+            </button>
           </p>
         </div>
       </div>
