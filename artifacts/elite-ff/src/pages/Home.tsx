@@ -133,7 +133,7 @@ export default function Home() {
             </div>
             <button
               onClick={() => navigate("/leaderboard")}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-smooth active:scale-95 hover:scale-105"
+              className="flex items-center gap-2 px-6 py-3 mt-3 rounded-xl font-bold text-sm transition-smooth active:scale-95 hover:scale-105"
               style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}
             >
               <Users size={16} /> Leaderboard

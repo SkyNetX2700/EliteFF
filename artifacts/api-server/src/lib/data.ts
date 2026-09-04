@@ -10,6 +10,7 @@ import {
   scoreboardTable,
   tournamentsTable,
   usersTable,
+  appSettingsTable,
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
 
@@ -24,6 +25,7 @@ const tables: Record<string, any> = {
   scoreboard: scoreboardTable,
   tournaments: tournamentsTable,
   users: usersTable,
+  app_settings: appSettingsTable,
 };
 
 function snakeToCamel(value: any): any {
@@ -222,8 +224,7 @@ export function safeUser(value: any) {
 
 export function publicTournament(value: any) {
   if (!value) return null;
-  // The UPI ID and QR URL are intentionally public tournament payment details.
-  // They are needed by players before registration so the QR can encode the
-  // exact amount and payment destination.
+  // Keep the UPI destination available for QR generation, but registration
+  // records never copy it into player-submitted data.
   return snakeToCamel({ ...value });
 }

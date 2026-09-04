@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, registrationsTable, tournamentsTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { getAuthMiddleware, getHostMiddleware } from "./auth";
 import { dataClient, camel, camels } from "../lib/data";
 import { safeUser } from "../lib/data";
@@ -89,9 +89,19 @@ router.get("/", auth, async (req: any, res) => {
 
 router.post("/", async (req: any, res) => {
   try {
-    const { tournamentId, squadName, playerNames, paymentScreenshotUrl, upiId, utrNumber, guestUsername } = req.body;
+    const { tournamentId, squadName, playerNames, paymentScreenshotUrl, utrNumber, guestUsername } = req.body;
     if (!tournamentId || !squadName || !playerNames || !utrNumber) {
       res.status(400).json({ message: "Tournament ID, squad name, player names, and UTR number are required" });
+      return;
+    }
+    const normalizedUtr = String(utrNumber).trim().toUpperCase().replace(/\s+/g, "");
+    if (
+      normalizedUtr.length < 6 ||
+      normalizedUtr.length > 64 ||
+      !/^[A-Z0-9-]+$/.test(normalizedUtr) ||
+      normalizedUtr === "-"
+    ) {
+      res.status(400).json({ message: "Enter a valid UTR / transaction ID using 6–64 letters or numbers." });
       return;
     }
     const userId = req.userId ?? await ensureGuestUser(guestUsername || `Guest ${squadName}`);
@@ -103,15 +113,37 @@ router.post("/", async (req: any, res) => {
       return;
     }
 
+    // Check the normalized value across every tournament. The unique index in
+    // the migration provides the final race-safe guarantee for concurrent posts.
+    const normalizedUtrExpression = sql`upper(regexp_replace(trim(${registrationsTable.utrNumber}), '\\s+', '', 'g')) = ${normalizedUtr}`;
+    const duplicateWhere = existing
+      ? and(normalizedUtrExpression, ne(registrationsTable.id, Number(existing.id)))
+      : normalizedUtrExpression;
+    const [duplicate] = await db.select({ id: registrationsTable.id })
+      .from(registrationsTable)
+      .where(duplicateWhere)
+      .limit(1);
+    if (duplicate) {
+      res.status(409).json({ message: "This UTR / transaction ID is not valid because it has already been used." });
+      return;
+    }
+
     const payload = {
       tournament_id: tournamentId, user_id: userId, squad_name: squadName, player_names: playerNames,
-      payment_screenshot_url: paymentScreenshotUrl || null, upi_id: upiId || null, utr_number: utrNumber,
+      payment_screenshot_url: paymentScreenshotUrl || null, upi_id: null, utr_number: normalizedUtr,
       status: "pending", decline_reason: null, approved_at: null, slot_number: null,
     };
     const result = existing
       ? await dataClient().from("registrations").update(payload).eq("id", existing.id).select("*").single()
       : await dataClient().from("registrations").insert(payload).select("*").single();
-    if (result.error) throw result.error;
+    if (result.error) {
+      const message = String((result.error as any)?.message || result.error);
+      if ((result.error as any)?.code === "23505" || /registrations_utr_number/i.test(message)) {
+        res.status(409).json({ message: "This UTR / transaction ID is not valid because it has already been used." });
+        return;
+      }
+      throw result.error;
+    }
     const row = await serializeRegistration(result.data);
     const tournament = await tournamentById(Number(tournamentId));
     await dataClient().from("history").insert({

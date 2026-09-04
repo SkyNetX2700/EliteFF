@@ -189,7 +189,7 @@ export default function HostSettings() {
     await new Promise(r => setTimeout(r, 500));
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     localStorage.setItem(NOTIF_EVENTS_KEY, JSON.stringify(notifEvents));
-    setAppIdentity(editName || appName, logoUrl);
+    await setAppIdentity(editName || appName, logoUrl);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);

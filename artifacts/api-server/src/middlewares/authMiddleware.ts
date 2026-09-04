@@ -87,6 +87,7 @@ export async function authMiddleware(req: Request, _res: Response, next: NextFun
     }
     const user = await getOrCreateUser(supabaseUser);
     (req as any).userId = user.id;
+    (req as any).supabaseUserId = supabaseUser.id;
     (req as any).userRole = user.role;
     (req as any).userEmail = user.email;
     (req as any).isAuthenticated = () => true;

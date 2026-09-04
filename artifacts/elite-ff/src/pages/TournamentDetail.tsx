@@ -30,8 +30,8 @@ async function uploadPaymentScreenshot(file: File) {
   if (!contentType.startsWith("image/")) {
     throw new Error("Choose an image file for the payment screenshot");
   }
-  if (file.size <= 0 || file.size > 5 * 1024 * 1024) {
-    throw new Error("Payment screenshot must be between 1 byte and 5MB");
+  if (file.size <= 0 || file.size > 10 * 1024 * 1024) {
+    throw new Error("Payment screenshot must be between 1 byte and 10MB");
   }
 
   const response = await apiFetch("/api/storage/uploads/request-url", {
@@ -44,8 +44,8 @@ async function uploadPaymentScreenshot(file: File) {
     throw new Error(body.message || `Unable to prepare payment screenshot upload (${response.status})`);
   }
   const uploadResponse = await fetch(body.uploadURL, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
+    method: body.uploadMethod || "PUT",
+    headers: { "Content-Type": contentType, ...(body.uploadHeaders || {}) },
     body: file,
   });
   if (!uploadResponse.ok) {
@@ -154,7 +154,7 @@ function UPIQRCode({ upiId, amount, tournamentName, prizePool }: { upiId: string
 
   async function shareQr() {
     if (!qrDataUrl) return;
-    const shareText = `Pay ₹${amount.toLocaleString("en-IN")} entry fee for ${tournamentName} to ${upiId}.`;
+    const shareText = `Pay ₹${amount.toLocaleString("en-IN")} entry fee for ${tournamentName}.`;
     try {
       const response = await fetch(qrDataUrl);
       const blob = await response.blob();
@@ -164,7 +164,7 @@ function UPIQRCode({ upiId, amount, tournamentName, prizePool }: { upiId: string
       } else if (navigator.share) {
         await navigator.share({ title: `${tournamentName} payment details`, text: shareText });
       } else {
-        await navigator.clipboard.writeText(`${shareText}\nUPI ID: ${upiId}`);
+        await navigator.clipboard.writeText(shareText);
       }
       setShared(true);
       window.setTimeout(() => setShared(false), 2000);
@@ -197,11 +197,11 @@ function UPIQRCode({ upiId, amount, tournamentName, prizePool }: { upiId: string
         </p>
       )}
       <button
-        onClick={() => copy(upiId)}
+        onClick={() => copy(`Pay ₹${amount.toLocaleString("en-IN")} entry fee for ${tournamentName}`)}
         className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-smooth active:scale-95"
         style={{ background: "rgba(255,107,53,0.12)", color: "#ff6b35", border: "1px solid rgba(255,107,53,0.2)" }}
       >
-        <Copy size={12} /> {upiId}
+        <Copy size={12} /> Copy payment details
       </button>
       <div className="flex w-full gap-2">
         <button
@@ -408,7 +408,6 @@ export default function TournamentDetail() {
           playerNames: data?.playerNames || `${teamName.trim()} | ${ignNames.join(", ")}`,
           utrNumber: data?.utrNumber || utr.trim() || "-",
           paymentScreenshotUrl: data?.paymentScreenshotUrl || null,
-          upiId: data?.upiId || tournament?.upiId || null,
           status: data?.status || "pending",
           slotNumber: data?.slotNumber ?? null,
           approvedAt: data?.approvedAt || null,
@@ -428,7 +427,7 @@ export default function TournamentDetail() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) { setRegError("Choose an image file"); return; }
-    if (file.size > 5 * 1024 * 1024) { setRegError("Payment screenshot must be 5MB or smaller"); return; }
+    if (file.size > 10 * 1024 * 1024) { setRegError("Payment screenshot must be 10MB or smaller"); return; }
     setScreenshotFile(file);
     const reader = new FileReader();
     reader.onload = ev => {
@@ -473,9 +472,9 @@ export default function TournamentDetail() {
 
     // UTR duplicate check
     if (tournament?.isPaid && utr.trim()) {
-      const utrVal = utr.trim().toLowerCase();
+      const utrVal = utr.trim().toUpperCase().replace(/\s+/g, "");
       const duplicate = (registrations as any[]).find(
-        (r: any) => r.utrNumber && r.utrNumber.trim().toLowerCase() === utrVal
+        (r: any) => r.utrNumber && r.utrNumber.trim().toUpperCase().replace(/\s+/g, "") === utrVal
       );
       if (duplicate) {
         setRegError("This UTR / Transaction ID has already been used. Each UTR can only be submitted once.");
@@ -495,9 +494,8 @@ export default function TournamentDetail() {
           tournamentId: id,
           squadName: teamName.trim(),
           playerNames,
-          utrNumber: utr.trim() || "-",
+          utrNumber: utr.trim().toUpperCase().replace(/\s+/g, "") || "-",
           paymentScreenshotUrl,
-          upiId: tournament?.upiId || null,
           guestUsername: user?.username || null,
         } as any,
       });
@@ -1527,7 +1525,7 @@ export default function TournamentDetail() {
                         ) : (
                           <>
                             <Camera size={24} style={{ color: "var(--th-dim)" }} />
-                            <span className="text-xs text-muted-foreground">PNG, JPG up to 5MB</span>
+                             <span className="text-xs text-muted-foreground">PNG, JPG up to 10MB</span>
                           </>
                         )}
                       </div>

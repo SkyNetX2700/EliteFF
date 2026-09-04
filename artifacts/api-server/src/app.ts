@@ -33,7 +33,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(cookieParser());
-app.use(express.json({ limit: "5mb" } as any));
+app.use(express.json({ limit: "12mb" } as any));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(authMiddleware as any);

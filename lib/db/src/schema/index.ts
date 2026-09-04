@@ -5,3 +5,4 @@ export * from "./notifications";
 export * from "./results";
 export * from "./feedback";
 export * from "./bestPlayer";
+export * from "./appSettings";

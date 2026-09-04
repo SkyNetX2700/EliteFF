@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { apiFetch } from "@/lib/auth";
 
 const DEFAULT_APP_NAME = "ELITE FF";
 const DEFAULT_LOGO_URL = "/Elite_1777629983897.png";
@@ -41,7 +42,7 @@ interface AppContextType {
   unreadCount: number;
   appName: string;
   logoUrl: string;
-  setAppIdentity: (name: string, url: string) => void;
+  setAppIdentity: (name: string, url: string) => Promise<void>;
   whatsappUrl: string;
   instagramUrl: string;
   setSocialLinks: (whatsapp: string, instagram: string) => void;
@@ -61,7 +62,7 @@ const AppContext = createContext<AppContextType>({
   unreadCount: 0,
   appName: DEFAULT_APP_NAME,
   logoUrl: DEFAULT_LOGO_URL,
-  setAppIdentity: () => {},
+  setAppIdentity: async () => {},
   whatsappUrl: "https://wa.me/",
   instagramUrl: "https://instagram.com/",
   setSocialLinks: () => {},
@@ -105,6 +106,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return raw ? JSON.parse(raw) : { name: DEFAULT_APP_NAME, url: DEFAULT_LOGO_URL };
     } catch { return { name: DEFAULT_APP_NAME, url: DEFAULT_LOGO_URL }; }
   });
+
+  useEffect(() => {
+    let active = true;
+    apiFetch("/api/settings/public")
+      .then(response => response.ok ? response.json() : null)
+      .then(shared => {
+        if (!active || !shared?.name || !shared?.logoUrl) return;
+        const next = { name: String(shared.name), url: String(shared.logoUrl) };
+        setIdentity(next);
+        try { localStorage.setItem(IDENTITY_KEY, JSON.stringify(next)); } catch {}
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
   const [socialLinks, setSocialLinksState] = useState(() => ({
     whatsapp: localStorage.getItem("eliteff_whatsapp_url") || "https://wa.me/",
     instagram: localStorage.getItem("eliteff_instagram_url") || "https://instagram.com/",
@@ -165,10 +180,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function clearAlerts() { setAlertsState([]); }
 
-  function setAppIdentity(name: string, url: string) {
+  async function setAppIdentity(name: string, url: string) {
     const val = { name, url };
     setIdentity(val);
     localStorage.setItem(IDENTITY_KEY, JSON.stringify(val));
+    try {
+      await apiFetch("/api/settings/branding", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, logoUrl: url }),
+      });
+    } catch {
+      // Keep the optimistic local value; the shared endpoint remains the
+      // source of truth for other browsers once the database is migrated.
+    }
   }
 
   function setSocialLinks(whatsapp: string, instagram: string) {

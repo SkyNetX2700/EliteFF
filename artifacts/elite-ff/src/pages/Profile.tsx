@@ -318,12 +318,6 @@ export default function Profile() {
                         <span className="font-mono text-foreground">{reg.utrNumber}</span>
                       </div>
                     )}
-                    {reg.upiId && (
-                      <div className="flex items-center gap-2">
-                        <span className="flex-shrink-0" style={{ color: "var(--th-dim)", minWidth: 55 }}>UPI:</span>
-                        <span className="text-foreground">{reg.upiId}</span>
-                      </div>
-                    )}
                     {reg.approvedAt && (
                       <div className="flex items-center gap-2">
                         <span className="flex-shrink-0" style={{ color: "var(--th-dim)", minWidth: 55 }}>Approved:</span>
