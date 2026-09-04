@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { db, matchResultsTable, notificationsTable, registrationsTable, scoreboardTable, historyTable, tournamentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { getAuthMiddleware, getHostMiddleware } from "./auth";
@@ -111,7 +112,7 @@ router.post("/", auth, hostOnly, async (req: any, res) => {
       hostId,
       status: "upcoming",
       isPrivate,
-      inviteLink: isPrivate ? `${req.headers.origin || ""}/tournaments/${crypto.randomUUID().slice(0, 8)}` : null,
+       inviteLink: isPrivate ? `${req.headers.origin || ""}/tournaments/${randomUUID().slice(0, 8)}` : null,
     };
     // Use the same adapter as the player-facing list so inserts and reads
     // share the exact same field conversion and database connection path.

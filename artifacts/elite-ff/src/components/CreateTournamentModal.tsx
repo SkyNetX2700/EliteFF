@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { X, Plus, ImagePlus, CheckCircle, Trash2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { X, Plus, ImagePlus, CheckCircle, Trash2, AlertCircle } from "lucide-react";
 import { useCreateTournament, type Tournament } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime12 } from "@/lib/dateFormat";
@@ -22,6 +22,14 @@ const FF_MAPS = [
   { name: "Alpine",     emoji: "⛰️",  color: "#818cf8" },
   { name: "Nexterra",   emoji: "🌌", color: "#a855f7" },
   { name: "Bermuda R.", emoji: "🌴", color: "#16a34a" },
+];
+
+const SETUP_QUOTES = [
+  "Every great lobby starts with a host who pays attention to the details.",
+  "Set the room. Set the pace. Let the best squad win.",
+  "A clear format makes every clutch moment count.",
+  "Good hosts create fair games players want to return to.",
+  "Build the match you would want to play in.",
 ];
 
 function compressImage(file: File): Promise<string> {
@@ -68,6 +76,16 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
     { rank: 3, label: "🥉 Third Place",    amount: "" },
   ]);
   const [error, setError] = useState("");
+  const [quoteIndex, setQuoteIndex] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    setQuoteIndex(Math.floor(Math.random() * SETUP_QUOTES.length));
+    const interval = window.setInterval(() => {
+      setQuoteIndex(index => (index + 1) % SETUP_QUOTES.length);
+    }, 7000);
+    return () => window.clearInterval(interval);
+  }, [open]);
 
   const create = useCreateTournament({
     mutation: {
@@ -90,11 +108,22 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
             }));
           }
         }
+        // Update the current player-facing list immediately, then invalidate
+        // every matching query so other screens and sessions refetch fresh data.
+        qc.setQueriesData({ queryKey: ["getTournaments"] }, (current: unknown) => {
+          if (!Array.isArray(current)) return current;
+          return [data, ...current.filter((item: any) => item?.id !== data.id)];
+        });
         qc.invalidateQueries({ queryKey: ["getTournaments"] });
         reset();
         onClose();
       },
-      onError: (e: any) => setError(e.message || "Failed to create"),
+      onError: (e: any) => {
+        const message = e?.message || "Unable to create the tournament.";
+        setError(message.includes("FUNCTION_INVOCATION_FAILED")
+          ? "The server could not save this tournament. Please check the API database connection and try again."
+          : message);
+      },
     },
   });
 
@@ -135,6 +164,19 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
       setError("Prize pool must be a whole number");
       return;
     }
+    const maxSlots = Number(form.maxSlots);
+    if (!Number.isInteger(maxSlots) || maxSlots < 1) {
+      setError("Max teams must be a whole number greater than 0");
+      return;
+    }
+    if (form.entryFee && Number(form.entryFee) < 0) {
+      setError("Entry fee cannot be negative");
+      return;
+    }
+    if (form.prizePool && Number(form.prizePool) < 0) {
+      setError("Prize pool cannot be negative");
+      return;
+    }
     const scheduledAt = new Date(form.scheduledAt);
     if (Number.isNaN(scheduledAt.getTime())) {
       setError("Choose a valid schedule time");
@@ -157,7 +199,7 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
         teamSize: form.teamSize,
         entryFee: form.entryFee ? Number(form.entryFee) : null,
         prizePool: form.prizePool ? Number(form.prizePool) : null,
-        maxSlots: parseInt(form.maxSlots) || 12,
+         maxSlots,
         upiId: form.upiId || null,
         scheduledAt: scheduledAt.toISOString(),
         rules: form.rules || null,
@@ -205,10 +247,11 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
         </div>
 
         <div className="p-5 flex flex-col gap-5">
-          <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.03))", border: "1px solid rgba(34,197,94,0.2)" }}>
+           <div className="rounded-2xl p-4 flex items-center gap-3 transition-all duration-500" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.03))", border: "1px solid rgba(34,197,94,0.2)" }}>
             <div className="flex-1">
-              <div className="text-sm font-black text-foreground">Ready when your squad is.</div>
-              <div className="text-xs mt-1" style={{ color: "var(--th-muted)" }}>Add the essentials first, then fine-tune matches, scoring, and prizes.</div>
+               <div className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#4ade80" }}>Host note</div>
+               <div className="text-sm font-black text-foreground mt-1 leading-snug" aria-live="polite">{SETUP_QUOTES[quoteIndex]}</div>
+               <div className="text-xs mt-1" style={{ color: "var(--th-muted)" }}>Add the essentials first, then fine-tune matches, scoring, and prizes.</div>
             </div>
             <div className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg flex-shrink-0" style={{ background: "rgba(34,197,94,0.16)", color: "#4ade80" }}>Host setup</div>
           </div>
@@ -665,7 +708,16 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
             </label>
           </div>
 
-          {error && <p className="text-xs font-semibold" style={{ color: "#ff4500" }}>{error}</p>}
+           {error && (
+             <div
+               role="alert"
+               className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5"
+               style={{ background: "rgba(255,69,0,0.10)", border: "1px solid rgba(255,69,0,0.28)" }}
+             >
+               <AlertCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: "#ff6b35" }} />
+               <p className="text-xs font-semibold leading-relaxed" style={{ color: "#ff8a65" }}>{error}</p>
+             </div>
+           )}
 
           <div className="sticky bottom-0 -mx-5 -mb-5 p-5 pt-3" style={{ background: "linear-gradient(to bottom, transparent, var(--th-card3) 22%)" }}>
             <button
