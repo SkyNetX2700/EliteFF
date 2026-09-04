@@ -1,0 +1,1417 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Elite FF Tournament Platform API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: tournaments
+    description: Tournament management
+  - name: registrations
+    description: Tournament registrations
+  - name: notifications
+    description: User notifications
+  - name: results
+    description: Match results
+  - name: feedback
+    description: Feedback and contact
+  - name: scoreboard
+    description: Live scoreboard
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBody"
+      responses:
+        "201":
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Login with ID/password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Unauthorized
+
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [auth]
+      summary: Logout current user
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Request password reset via mobile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordBody"
+      responses:
+        "200":
+          description: Reset initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Reset password with token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordBody"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  /tournaments:
+    get:
+      operationId: getTournaments
+      tags: [tournaments]
+      summary: List all tournaments
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tournaments list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tournament"
+    post:
+      operationId: createTournament
+      tags: [tournaments]
+      summary: Create a tournament (Host only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTournamentBody"
+      responses:
+        "201":
+          description: Tournament created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tournament"
+
+  /tournaments/{id}:
+    get:
+      operationId: getTournament
+      tags: [tournaments]
+      summary: Get tournament details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tournament details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tournament"
+        "404":
+          description: Not found
+    put:
+      operationId: updateTournament
+      tags: [tournaments]
+      summary: Update a tournament (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTournamentBody"
+      responses:
+        "200":
+          description: Tournament updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tournament"
+    delete:
+      operationId: deleteTournament
+      tags: [tournaments]
+      summary: Delete a tournament (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tournament deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /tournaments/{id}/cancel:
+    post:
+      operationId: cancelTournament
+      tags: [tournaments]
+      summary: Cancel a tournament (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelTournamentBody"
+      responses:
+        "200":
+          description: Tournament cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tournament"
+
+  /tournaments/{id}/delay:
+    post:
+      operationId: delayTournament
+      tags: [tournaments]
+      summary: Delay a tournament (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DelayTournamentBody"
+      responses:
+        "200":
+          description: Tournament delayed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tournament"
+
+  /tournaments/{id}/complete:
+    post:
+      operationId: completeTournament
+      tags: [tournaments]
+      summary: Mark tournament as completed (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tournament completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tournament"
+
+  /tournaments/{id}/room:
+    post:
+      operationId: uploadRoomCredentials
+      tags: [tournaments]
+      summary: Upload room ID and password (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoomCredentialsBody"
+      responses:
+        "200":
+          description: Room credentials uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tournament"
+
+  /tournaments/{id}/scoreboard:
+    get:
+      operationId: getScoreboard
+      tags: [scoreboard]
+      summary: Get live scoreboard for a tournament
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Scoreboard data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScoreboardEntry"
+    post:
+      operationId: updateScoreboard
+      tags: [scoreboard]
+      summary: Update scoreboard entry (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScoreboardUpdateBody"
+      responses:
+        "200":
+          description: Scoreboard updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreboardEntry"
+
+  /registrations:
+    get:
+      operationId: getRegistrations
+      tags: [registrations]
+      summary: Get registrations (filtered by tournament or user)
+      parameters:
+        - name: tournamentId
+          in: query
+          schema:
+            type: integer
+        - name: userId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Registrations list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Registration"
+    post:
+      operationId: createRegistration
+      tags: [registrations]
+      summary: Register for a tournament
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRegistrationBody"
+      responses:
+        "201":
+          description: Registration created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+
+  /registrations/{id}:
+    get:
+      operationId: getRegistration
+      tags: [registrations]
+      summary: Get registration details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Registration details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+
+  /registrations/{id}/verify:
+    post:
+      operationId: verifyRegistration
+      tags: [registrations]
+      summary: Verify a registration (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyRegistrationBody"
+      responses:
+        "200":
+          description: Registration verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+
+  /registrations/{id}/decline:
+    post:
+      operationId: declineRegistration
+      tags: [registrations]
+      summary: Decline a registration (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeclineRegistrationBody"
+      responses:
+        "200":
+          description: Registration declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+
+  /registrations/{id}/cancel:
+    post:
+      operationId: cancelRegistration
+      tags: [registrations]
+      summary: Cancel a registration (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Registration cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+
+  /results:
+    get:
+      operationId: getResults
+      tags: [results]
+      summary: Get match results
+      parameters:
+        - name: tournamentId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Results list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MatchResult"
+    post:
+      operationId: createResult
+      tags: [results]
+      summary: Upload match result (Host only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateResultBody"
+      responses:
+        "201":
+          description: Result created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchResult"
+
+  /results/{id}:
+    put:
+      operationId: updateResult
+      tags: [results]
+      summary: Update a result (Host only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateResultBody"
+      responses:
+        "200":
+          description: Result updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchResult"
+
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: Get notifications for current user
+      responses:
+        "200":
+          description: Notifications list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+    post:
+      operationId: createNotification
+      tags: [notifications]
+      summary: Create a notification (Host only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNotificationBody"
+      responses:
+        "201":
+          description: Notification created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}:
+    delete:
+      operationId: deleteNotification
+      tags: [notifications]
+      summary: Delete a notification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /feedback:
+    post:
+      operationId: submitFeedback
+      tags: [feedback]
+      summary: Submit feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackBody"
+      responses:
+        "201":
+          description: Feedback submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+    get:
+      operationId: getFeedback
+      tags: [feedback]
+      summary: Get all feedback (Host only)
+      responses:
+        "200":
+          description: Feedback list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Feedback"
+
+  /contact:
+    post:
+      operationId: submitContact
+      tags: [feedback]
+      summary: Submit contact message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactBody"
+      responses:
+        "201":
+          description: Contact submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [tournaments]
+      summary: Get platform stats summary
+      responses:
+        "200":
+          description: Stats summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsSummary"
+
+  /history:
+    get:
+      operationId: getHistory
+      tags: [tournaments]
+      summary: Get user tournament history
+      responses:
+        "200":
+          description: History list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HistoryEntry"
+    delete:
+      operationId: deleteHistory
+      tags: [tournaments]
+      summary: Delete all history for current user
+      responses:
+        "200":
+          description: History deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /history/{id}:
+    delete:
+      operationId: deleteHistoryEntry
+      tags: [tournaments]
+      summary: Delete a specific history entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+        role:
+          type: string
+      required:
+        - user
+        - token
+        - role
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: ["string", "null"]
+        mobile:
+          type: string
+        role:
+          type: string
+        profilePic:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - username
+        - mobile
+        - role
+        - createdAt
+
+    RegisterBody:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: ["string", "null"]
+        mobile:
+          type: string
+        password:
+          type: string
+        loginMethod:
+          type: string
+      required:
+        - username
+        - mobile
+        - password
+        - loginMethod
+
+    LoginBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        password:
+          type: string
+        loginMethod:
+          type: string
+      required:
+        - userId
+        - password
+        - loginMethod
+
+    ForgotPasswordBody:
+      type: object
+      properties:
+        mobile:
+          type: string
+      required:
+        - mobile
+
+    ResetPasswordBody:
+      type: object
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+        mobile:
+          type: string
+      required:
+        - token
+        - newPassword
+        - mobile
+
+    Tournament:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        mode:
+          type: string
+        mapName:
+          type: ["string", "null"]
+        teamSize:
+          type: string
+        entryFee:
+          type: ["integer", "null"]
+        prizePool:
+          type: ["integer", "null"]
+        booyahPrize:
+          type: ["integer", "null"]
+        secondPrize:
+          type: ["integer", "null"]
+        thirdPrize:
+          type: ["integer", "null"]
+        highestKillPrize:
+          type: ["integer", "null"]
+        maxSlots:
+          type: integer
+        filledSlots:
+          type: integer
+        status:
+          type: string
+        scheduledAt:
+          type: string
+        rules:
+          type: ["string", "null"]
+        posterUrl:
+          type: ["string", "null"]
+        upiId:
+          type: ["string", "null"]
+        qrUrl:
+          type: ["string", "null"]
+        roomId:
+          type: ["string", "null"]
+        roomPassword:
+          type: ["string", "null"]
+        cancelReason:
+          type: ["string", "null"]
+        delayInfo:
+          type: ["string", "null"]
+        isPaid:
+          type: boolean
+        timerEnabled:
+          type: boolean
+        createdAt:
+          type: string
+        hostId:
+          type: integer
+      required:
+        - id
+        - name
+        - type
+        - mode
+        - teamSize
+        - maxSlots
+        - filledSlots
+        - status
+        - scheduledAt
+        - isPaid
+        - timerEnabled
+        - createdAt
+        - hostId
+
+    CreateTournamentBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        mode:
+          type: string
+        mapName:
+          type: ["string", "null"]
+        teamSize:
+          type: string
+        entryFee:
+          type: ["integer", "null"]
+        prizePool:
+          type: ["integer", "null"]
+        booyahPrize:
+          type: ["integer", "null"]
+        secondPrize:
+          type: ["integer", "null"]
+        thirdPrize:
+          type: ["integer", "null"]
+        highestKillPrize:
+          type: ["integer", "null"]
+        maxSlots:
+          type: integer
+        scheduledAt:
+          type: string
+        rules:
+          type: ["string", "null"]
+        posterUrl:
+          type: ["string", "null"]
+        upiId:
+          type: ["string", "null"]
+        isPaid:
+          type: boolean
+        timerEnabled:
+          type: boolean
+      required:
+        - name
+        - type
+        - mode
+        - teamSize
+        - maxSlots
+        - scheduledAt
+        - isPaid
+        - timerEnabled
+
+    UpdateTournamentBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        type:
+          type: ["string", "null"]
+        mode:
+          type: ["string", "null"]
+        mapName:
+          type: ["string", "null"]
+        teamSize:
+          type: ["string", "null"]
+        entryFee:
+          type: ["integer", "null"]
+        prizePool:
+          type: ["integer", "null"]
+        booyahPrize:
+          type: ["integer", "null"]
+        secondPrize:
+          type: ["integer", "null"]
+        thirdPrize:
+          type: ["integer", "null"]
+        highestKillPrize:
+          type: ["integer", "null"]
+        maxSlots:
+          type: ["integer", "null"]
+        scheduledAt:
+          type: ["string", "null"]
+        rules:
+          type: ["string", "null"]
+        posterUrl:
+          type: ["string", "null"]
+        upiId:
+          type: ["string", "null"]
+        isPaid:
+          type: ["boolean", "null"]
+        timerEnabled:
+          type: ["boolean", "null"]
+        roomId:
+          type: ["string", "null"]
+        roomPassword:
+          type: ["string", "null"]
+
+    CancelTournamentBody:
+      type: object
+      properties:
+        reason:
+          type: string
+      required:
+        - reason
+
+    DelayTournamentBody:
+      type: object
+      properties:
+        newScheduledAt:
+          type: string
+        reason:
+          type: string
+      required:
+        - newScheduledAt
+        - reason
+
+    RoomCredentialsBody:
+      type: object
+      properties:
+        roomId:
+          type: string
+        roomPassword:
+          type: string
+      required:
+        - roomId
+        - roomPassword
+
+    Registration:
+      type: object
+      properties:
+        id:
+          type: integer
+        tournamentId:
+          type: integer
+        userId:
+          type: integer
+        squadName:
+          type: string
+        playerNames:
+          type: string
+        paymentScreenshotUrl:
+          type: ["string", "null"]
+        utrNumber:
+          type: string
+        status:
+          type: string
+        slotNumber:
+          type: ["integer", "null"]
+        declineReason:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - id
+        - tournamentId
+        - userId
+        - squadName
+        - playerNames
+        - utrNumber
+        - status
+        - createdAt
+        - user
+
+    CreateRegistrationBody:
+      type: object
+      properties:
+        tournamentId:
+          type: integer
+        squadName:
+          type: string
+        playerNames:
+          type: string
+        paymentScreenshotUrl:
+          type: ["string", "null"]
+        utrNumber:
+          type: string
+      required:
+        - tournamentId
+        - squadName
+        - playerNames
+        - utrNumber
+
+    VerifyRegistrationBody:
+      type: object
+      properties:
+        slotNumber:
+          type: ["integer", "null"]
+      required: []
+
+    DeclineRegistrationBody:
+      type: object
+      properties:
+        reason:
+          type: string
+      required:
+        - reason
+
+    MatchResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        tournamentId:
+          type: integer
+        registrationId:
+          type: integer
+        squadName:
+          type: string
+        placement:
+          type: ["string", "null"]
+        outcome:
+          type: ["string", "null"]
+        kills:
+          type: ["integer", "null"]
+        prize:
+          type: ["integer", "null"]
+        prizeType:
+          type: ["string", "null"]
+        paymentScreenshotUrl:
+          type: ["string", "null"]
+        utrNumber:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - tournamentId
+        - registrationId
+        - squadName
+        - createdAt
+
+    CreateResultBody:
+      type: object
+      properties:
+        tournamentId:
+          type: integer
+        registrationId:
+          type: integer
+        squadName:
+          type: string
+        placement:
+          type: ["string", "null"]
+        outcome:
+          type: ["string", "null"]
+        kills:
+          type: ["integer", "null"]
+        prize:
+          type: ["integer", "null"]
+        prizeType:
+          type: ["string", "null"]
+        paymentScreenshotUrl:
+          type: ["string", "null"]
+        utrNumber:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+      required:
+        - tournamentId
+        - registrationId
+        - squadName
+
+    UpdateResultBody:
+      type: object
+      properties:
+        placement:
+          type: ["string", "null"]
+        outcome:
+          type: ["string", "null"]
+        kills:
+          type: ["integer", "null"]
+        prize:
+          type: ["integer", "null"]
+        prizeType:
+          type: ["string", "null"]
+        paymentScreenshotUrl:
+          type: ["string", "null"]
+        utrNumber:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        title:
+          type: string
+        message:
+          type: string
+        type:
+          type: string
+        tournamentId:
+          type: ["integer", "null"]
+        registrationId:
+          type: ["integer", "null"]
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - userId
+        - title
+        - message
+        - type
+        - isRead
+        - createdAt
+
+    CreateNotificationBody:
+      type: object
+      properties:
+        userId:
+          type: ["integer", "null"]
+        title:
+          type: string
+        message:
+          type: string
+        type:
+          type: string
+        tournamentId:
+          type: ["integer", "null"]
+        registrationId:
+          type: ["integer", "null"]
+        targetAll:
+          type: boolean
+      required:
+        - title
+        - message
+        - type
+
+    Feedback:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: ["integer", "null"]
+        name:
+          type: string
+        message:
+          type: string
+        rating:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - message
+        - createdAt
+
+    FeedbackBody:
+      type: object
+      properties:
+        name:
+          type: string
+        message:
+          type: string
+        rating:
+          type: ["integer", "null"]
+      required:
+        - name
+        - message
+
+    ContactBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        message:
+          type: string
+        via:
+          type: string
+      required:
+        - name
+        - message
+        - via
+
+    StatsSummary:
+      type: object
+      properties:
+        totalTournaments:
+          type: integer
+        activeTournaments:
+          type: integer
+        totalPlayers:
+          type: integer
+        totalRegistrations:
+          type: integer
+      required:
+        - totalTournaments
+        - activeTournaments
+        - totalPlayers
+        - totalRegistrations
+
+    HistoryEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        tournamentId:
+          type: integer
+        tournamentName:
+          type: string
+        action:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - userId
+        - tournamentId
+        - tournamentName
+        - action
+        - createdAt
+
+    ScoreboardEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        tournamentId:
+          type: integer
+        registrationId:
+          type: integer
+        squadName:
+          type: string
+        kills:
+          type: integer
+        rank:
+          type: ["integer", "null"]
+        points:
+          type: integer
+        updatedAt:
+          type: string
+      required:
+        - id
+        - tournamentId
+        - registrationId
+        - squadName
+        - kills
+        - points
+        - updatedAt
+
+    ScoreboardUpdateBody:
+      type: object
+      properties:
+        registrationId:
+          type: integer
+        squadName:
+          type: string
+        kills:
+          type: integer
+        rank:
+          type: ["integer", "null"]
+        points:
+          type: integer
+      required:
+        - registrationId
+        - squadName
+        - kills
+        - points

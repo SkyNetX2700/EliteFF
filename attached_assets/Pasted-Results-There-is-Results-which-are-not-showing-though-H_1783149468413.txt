@@ -1,0 +1,48 @@
+Results :-
+There is Results which are not showing though Host Uploaded it to the respective player who registered for the matches
+ 📌 Core Features Summary
+1. The Dynamic "Proof of Rewards" System
+The Workflow: When a match ends, the Host uploads a payment receipt screenshot and selects the winner's name from a dropdown menu (no manual typing).
+The Targeting: The app searches for the Gmail address linked to that winning slot/squad and updates only that user's profile with the screenshot, their placement (1st, 2nd, or 3rd), and adds the cash to their Total Earnings balance.
+2. Registration, Verification, & The Notification Fix
+Data Privacy (The Fix): Users log in via Google OAuth. All notifications, registration data, and slot details are locked strictly to that logged-in Gmail. No user can see anyone else's notification or data.
+Form Redit: If a Host declines a player's entry screenshot, the player can edit and re-upload their form instead of starting over.
+Room Access: Only players approved by the host can see the Room ID and Password.
+3. Automated Slot Booking & Fast Refunds
+Slots: As soon as the Host approves a registration, the app automatically assigns an open Slot Number to prevent double-booking.
+5-Min Refund: If a tournament fills up after a player has paid, the Host clicks "Room Full". The player gets a 5-minute countdown clock notification, and the Host gets a quick-action link to return the money instantly.
+4. "Elite Special" (Private Tournaments)
+The Lock: These matches are visible to everyone under a separate tab but display a 🔒 Locked icon. Clicking it shows a pop-up saying it's private and lists WhatsApp/Instagram contact details to apply.
+The Backdoor: The Host can generate a special invite link. Anyone who uses that exact link can bypass the lock and register.
+5. "Best" Player 24-Hour Showcase
+Replaces the old "Elite Star" text program.
+The Host can feature top players in a public "Best" section.
+Auto-Expiry: These shoutout cards automatically delete themselves from the app exactly 24 hours after being uploaded.
+🏆 Rank Progression & Points Math
+📈 Ranks (Calculated by Points)
+Blaze 🔥: 0 - 149
+Striker ⚔️: 150 - 299
+Predator 🐺: 300 - 499
+Phantom 👤: 500 - 749
+Nexus ⚡: 750 - 999
+Nova ✨: 1000 - 1249
+Supreme 👑: 1250 - 1499
+Legend 🌟: 1500 - 1699
+Apex 🏔️: 1700 - 1999 (Gets ₹300 Reward on first reach)
+Elite 💎: 2000+ Points
+🔄 The Elite Prestige Loop
+When a player reaches Elite (2000+ points):
+They automatically get a ₹500 Reward added to their earnings.
+Their profile gets a Star Counter that increases by +1 (e.g., ⭐, ⭐⭐).
+Their points reset back to 0 (Blaze) so they can climb the ladder and earn more stars again.
+📊 Point Shifts & Penalties
+Winner: +50 | 2nd Place: +30 | 3rd Place: +20 | Participation: +5
+No Show: -10
+Lost 3 Tournaments in a row: -50
+Disqualified: -100
+Cheating/Fake Results: -200 and an Account Ban (blocks them from entering future tournaments).
+🛡️ Automated Weekly Fair Play Bonus
+Every 7 days, the system automatically awards +20 points to players.
+The Exception: If a Host submits a verified Toxic Behaviour Report or bans the player for abusive language/harassment during those 7 days, the system blocks the bonus for that week.
+
+The structure of the ranks should show in the profile section of the players after clicking on the Rank detail option

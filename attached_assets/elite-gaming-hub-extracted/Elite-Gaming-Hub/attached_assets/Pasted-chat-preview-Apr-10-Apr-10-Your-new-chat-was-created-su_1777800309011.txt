@@ -1,0 +1,115 @@
+chat
+preview
+Apr 10
+Apr 10
+Your new chat was created successfully.
+
+Please tell me what app to create, or ask me a question.
+
+03:01
+IMG_20260404_174725_663.webp
+Firstly add Human Verification of Cloudfare check box and give white background as like other websites and give the home page Background as Free Fire theme with low opacity
+
+And then create Elite FF website design and features
+
+I want Home, Tournaments, Results, Feedback, Contact us
+
+And a Login option which can be login through the real and existed Gmail and don't add any random Gmail there though it is existed, Basically Gmail Login should work as like the login on chatgpt through gmail
+
+In home page basically there should be Options like Find Matches, Hall of Fame in which Match results can be shown
+
+And the Advantages in Highlighted with separate box like easy Registration, 100% Fair Play, Good Support, and Add the home background like a Pure Free Fire theme
+
+And the Advantages in Highlighted with separate box like easy Registration
+
+These is Ok give me final but don't add 2024 or any tournament until I can add And also give access to contact us option without login and add the attach image as logo in at the starting corner of ELITE FF
+
+Don't add Hall of Fame and Upcoming matches in Home page and also Dominate word is not fitting in both the views mobile and desktop also show their login option if not login and logo out option after login both should be of different colour or grading text
+
+Change ELITE FF colour, give gradient colour to ELITE and Bold the ELITE and FF keep FF whitish grey
+
+Please put options at the side of login like Home Tournament Results feedback and Contact us and please put the easy registration, 24/7 and 100% fair play at the home page and also put in the home page at down side one option is Follow on Instagram and other is Joining whatsapp with there logo and colours let me give you link (Instagram:- https://www.instagram .com/elitefftournaments.official?igsh= YzY5ajQxMDFoZTg3)
+
+(Whatsapp:- https://chat.whatsapp .com/CK1rapdbaNCA5uK5Gv5dsz ?mode=gi_t)
+
+And make it easy to fit all the page in the both mobile view and desktop view easily
+
+And put ELITE gradient colour and FF
+
+whitish Grey and put the heading as
+
+Dominant Battleground at the place of
+
+Battle Survive Conquer And also add two option in Contacts us one is whatsapp having number 7620855499 and other is Gmail support.eliteff@gmail.com
+
+And the main Login option should forward to the page of Gmail selection and after selection there should be Logout option also of red colour
+
+And also add attached image as logo at the starting of ELITE FF name
+
+And also make there a Separate Host Login option where Host can login and add tournaments and results also show after login logout option
+
+Can you please add Host Login only in that five options don't at Home Page and also show a Profile section also of the respected player gmail with name and also after any Tournament uploaded players can able to register on that with there squad name and player names and Host must have access to edit that tournament or match results at any time and if completed put them in History section and also give one add QR option and Verify option verify option if payment happened give access to Host for respected registration to verified him and registration completely and don't mix player login and Host Login
+Put Host Login ID as 276475 Pass as
+
+Marvel@2727 Can you add an Option for Main QR photo upload, So that host can able to replace that QR at any time and the Smart auto entered entry fee smart QR can depend on the Main QR uploaded by the Host which may vary for host in the respective section and create Smart UPI id also of the Main UPI ID created by Fee entered by host and also people can able to login from any gmail which is not exist can you make that correct so people can login only by the gmail which exist
+
+
+
+and also show Upload Photo option at
+the place of Payment URL and down side UPI Id
+
+After player try to login through Gmail please open the page as reference to the attached page means redirect player to their devices Gmail selection and don't add at player login page option of Enter name, after gmail login show the Gmail registered name directly and also after login add profile option for that gmail person information And set a Note on Payment page that if Once payment done there will be no refund and if in case tournament get cancel then you will get refund at respective UPIs
+
+And show some animations
+
+And there is Not completely option looking on Maps selection
+
+And for Host there should be option for Body 1v1, 2v2, 3v3, 4v4 custom and also same for onetap
+
+And there should be options also for CS tournament and BR Tournament
+
+And after Verified by host there should
+be auto analysis that at what number squad did register for example at 4 number squad is verified then give Player respected 4 slot number in there section Show them one completely Player point of View There should be smart QR system, Entry fees QR should be made at src of attached QR file Host Point of View Add options for For all 1v1, 2v2, 3v3, 4v4 onetap and Body options which can be selected by Players if there is one player who want to play any of these then he will register according to it and get verified after payment and any other player who want to play that same then he will also register there and get verified then show both of them Opponents of each other by giving them notifications on Gmail
+
+Players point of view at given time Players point of view at given time players will get Custom Room Id and password on there web register profile and Host must have access to upload or send them custom ID and Password
+on there Register profile
+
+There should Tournament Cancel option also to the Host by which he can able to cancel tournament also and Players can see tournament is cancel and payment will be refunded soon and Give Host follow access that he can also cancel Registration of any person even after registered
+
+And carefully add the or create QR of the respective price of the QR number when Hostel entered any amount then create that amount of QR and UPIds but money should be go to the original QR, these should be Smart QR ok.
+
+And also The Player can able to Register on the respected tournament and send verification after payment then Host will verify payment and click on the respected player Verified then the player get registered
+
+Host Login Section there should be Smart QR system of the price of Entry Fee entered by the Host and that new QR should show on the Players Login Players View
+
+upload Screenshot by redirecting them to there gallery I am seeing that these screenshot upload is getting errors please clear these error and allow to upload Screenshot and also there should be Entered UTR option present at the bottom of the upload Screenshot and automatically verify the UTR number
+
+and add a Rules Section on the upper options of the Dashboard
+
+having
+
+First Box:- Fair Play Policy
+
+No hacks, scripts, or third-party apps allowed. Use of any unfair mean will result in an immediate and permanent ban.
+
+Second Box:- Punctuality
+
+Room ID & Password will be shared 10-15 mins before match. Match will start exactly eduleed time.
+
+Third box:-
+
+Payment Verification
+
+UTR number must match your screenshot. Fake screenshots or edited receipts will lead to immediate disqualification.
+
+Fourth Box:-
+
+Player Identity
+
+Only registered In-Game Names (IGNs) are allowed. If someone else joins with your ID, they will be kicked.
+
+Fifth Box:-
+
+No Refunds
+
+Entry fee is non-refundable for no-shows or if you are disqualified for breaking any rules.

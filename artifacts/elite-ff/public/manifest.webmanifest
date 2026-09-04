@@ -1,0 +1,23 @@
+{
+  "name": "Elite FF Tournaments",
+  "short_name": "Elite FF",
+  "description": "Free Fire tournaments, live scores, and leaderboards.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e27",
+  "theme_color": "#0a0e27",
+  "icons": [
+    {
+      "src": "/elite-ff-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/elite-ff-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
