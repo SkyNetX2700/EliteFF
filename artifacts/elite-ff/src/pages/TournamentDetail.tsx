@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import {
-  ArrowLeft, Trophy, Users, Clock, Shield, Key, Copy, QrCode, Download,
+  ArrowLeft, Trophy, Users, Clock, Shield, Key, Copy, QrCode,
   CheckCircle, XCircle, Pencil, Trash2, AlertTriangle, RotateCcw,
   Upload, Camera, ChartNoAxesColumn, RefreshCw, Swords, Megaphone,
   Radio, CalendarClock, Ban, MessageSquarePlus, CreditCard, Share2
@@ -23,7 +23,6 @@ import { useAppContext } from "@/contexts/AppContext";
 import { apiFetch } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime12, formatTime12 } from "@/lib/dateFormat";
-import QRCode from "qrcode";
 
 async function uploadPaymentScreenshot(file: File) {
   const contentType = file.type || "image/jpeg";
@@ -117,109 +116,25 @@ function Countdown({ scheduledAt, onExpire, variant = "normal" }: {
   );
 }
 
-function UPIQRCode({ upiId, amount, tournamentName, prizePool }: { upiId: string; amount: number; tournamentName: string; prizePool?: number | null }) {
-  const upiLink = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=EliteFF&am=${amount}&tn=${encodeURIComponent(`Entry: ${tournamentName}`)}`;
-  const [qrDataUrl, setQrDataUrl] = useState("");
-  const [qrError, setQrError] = useState("");
-  const [shared, setShared] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    setQrDataUrl("");
-    setQrError("");
-    QRCode.toDataURL(upiLink, {
-      width: 320,
-      margin: 2,
-      errorCorrectionLevel: "M",
-      color: { dark: "#0a0e27", light: "#ffffff" },
-    }).then(dataUrl => {
-      if (active) setQrDataUrl(dataUrl);
-    }).catch(() => {
-      if (active) setQrError("Unable to generate the payment QR code.");
-    });
-    return () => { active = false; };
-  }, [upiLink]);
-
-  function copy(text: string) {
-    navigator.clipboard.writeText(text).catch(() => {});
-  }
-
-  function downloadQr() {
-    if (!qrDataUrl) return;
-    const link = document.createElement("a");
-    link.href = qrDataUrl;
-    link.download = `${tournamentName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "elite-ff"}-upi-qr.png`;
-    link.click();
-  }
-
-  async function shareQr() {
-    if (!qrDataUrl) return;
-    const shareText = `Pay ₹${amount.toLocaleString("en-IN")} entry fee for ${tournamentName}.`;
-    try {
-      const response = await fetch(qrDataUrl);
-      const blob = await response.blob();
-      const file = new File([blob], "elite-ff-upi-qr.png", { type: "image/png" });
-      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-        await navigator.share({ title: `${tournamentName} payment QR`, text: shareText, files: [file] });
-      } else if (navigator.share) {
-        await navigator.share({ title: `${tournamentName} payment details`, text: shareText });
-      } else {
-        await navigator.clipboard.writeText(shareText);
-      }
-      setShared(true);
-      window.setTimeout(() => setShared(false), 2000);
-    } catch {
-      // Sharing can be cancelled by the user; it should not interrupt registration.
-    }
-  }
-
+function UPIQRCode({ qrUrl, amount }: { qrUrl?: string | null; amount: number }) {
   return (
-    <div className="rounded-2xl p-5 flex flex-col items-center gap-4" style={{ background: "var(--th-card)", border: "1px solid var(--th-border)" }}>
+    <div className="rounded-2xl p-5 flex flex-col items-center gap-4" style={{ background: "var(--th-card)", border: "1px solid var(--th-border)" }} data-testid="payment-step-qr">
       <div className="flex items-center gap-2">
         <QrCode size={16} style={{ color: "#ff6b35" }} />
-        <span className="font-display font-bold text-sm text-foreground">Scan to Pay Entry Fee</span>
+        <span className="font-display font-bold text-sm text-foreground">Scan to pay</span>
       </div>
       <div className="rounded-2xl overflow-hidden p-2" style={{ background: "white" }}>
-        {qrDataUrl ? (
-          <img src={qrDataUrl} alt={`UPI payment QR for ₹${amount}`} className="w-40 h-40" />
+        {qrUrl ? (
+          <img src={qrUrl} alt={`Payment QR for ₹${amount}`} className="w-48 h-48" data-testid="img-payment-qr" />
         ) : (
           <div className="w-40 h-40 flex items-center justify-center text-center text-xs text-slate-500">
-            {qrError || "Generating QR…"}
+            Payment QR unavailable. Ask the host to update this tournament.
           </div>
         )}
       </div>
-      <p className="text-xs text-center" style={{ color: "var(--th-muted)" }}>
-        Scan with PhonePe, GPay, Paytm, or any UPI app to pay exactly ₹{amount.toLocaleString("en-IN")}
-      </p>
-      {prizePool && prizePool > 0 && (
-        <p className="text-xs text-center font-bold" style={{ color: "#fbbf24" }}>
-          Prize Pool: ₹{prizePool.toLocaleString("en-IN")}
-        </p>
-      )}
-      <button
-        onClick={() => copy(`Pay ₹${amount.toLocaleString("en-IN")} entry fee for ${tournamentName}`)}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-smooth active:scale-95"
-        style={{ background: "rgba(255,107,53,0.12)", color: "#ff6b35", border: "1px solid rgba(255,107,53,0.2)" }}
-      >
-        <Copy size={12} /> Copy payment details
-      </button>
-      <div className="flex w-full gap-2">
-        <button
-          onClick={downloadQr}
-          disabled={!qrDataUrl}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-smooth active:scale-95 disabled:opacity-50"
-          style={{ background: "var(--th-card2)", color: "var(--th-text)", border: "1px solid var(--th-border2)" }}
-        >
-          <Download size={13} /> Download QR
-        </button>
-        <button
-          onClick={shareQr}
-          disabled={!qrDataUrl}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-smooth active:scale-95 disabled:opacity-50"
-          style={{ background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.2)" }}
-        >
-          <Share2 size={13} /> {shared ? "Copied" : "Share QR"}
-        </button>
+      <div className="text-center">
+        <div className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "var(--th-dim)" }}>Entry amount</div>
+        <div className="font-display font-black text-2xl text-foreground mt-1" data-testid="text-entry-amount">₹{amount.toLocaleString("en-IN")}</div>
       </div>
     </div>
   );
@@ -290,10 +205,11 @@ export default function TournamentDetail() {
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [registrationActionError, setRegistrationActionError] = useState("");
   const [shareCopied, setShareCopied] = useState(false);
+  const [registrationStep, setRegistrationStep] = useState<1 | 2 | 3>(1);
 
   // Registration form state
   const [teamName, setTeamName] = useState("");
-  const [ignNames, setIgnNames] = useState<string[]>([""]);
+  const [playerNames, setPlayerNames] = useState<string[]>([""]);
   const [utr, setUtr] = useState("");
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState("");
@@ -405,7 +321,7 @@ export default function TournamentDetail() {
           tournamentId: id,
           tournamentName: tournament?.name || `Tournament #${id}`,
           squadName: data?.squadName || teamName.trim(),
-          playerNames: data?.playerNames || `${teamName.trim()} | ${ignNames.join(", ")}`,
+          playerNames: data?.playerNames || `${teamName.trim()} | ${playerNames.join(", ")}`,
           utrNumber: data?.utrNumber || utr.trim() || "-",
           paymentScreenshotUrl: data?.paymentScreenshotUrl || null,
           status: data?.status || "pending",
@@ -427,8 +343,9 @@ export default function TournamentDetail() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) { setRegError("Choose an image file"); return; }
-    if (file.size > 10 * 1024 * 1024) { setRegError("Payment screenshot must be 10MB or smaller"); return; }
+    if (file.size <= 0 || file.size > 10 * 1024 * 1024) { setRegError("Payment screenshot must be between 1 byte and 10MB"); return; }
     setScreenshotFile(file);
+    setRegError("");
     const reader = new FileReader();
     reader.onload = ev => {
       const img = new Image();
@@ -447,26 +364,56 @@ export default function TournamentDetail() {
   }
 
   const teamSize = (tournament?.teamSize || "squad") as "solo" | "duo" | "squad";
-  const requiredIgnCount = teamSize === "solo" ? 1 : teamSize === "duo" ? 2 : 4;
+  const requiredPlayerCount = teamSize === "solo" ? 1 : teamSize === "duo" ? 2 : 4;
 
-  function updateIgnCount() {
-    setIgnNames(prev => {
-      if (prev.length === requiredIgnCount) return prev;
+  function updatePlayerCount() {
+    setPlayerNames(prev => {
+      if (prev.length === requiredPlayerCount) return prev;
       const next = [...prev];
-      while (next.length < requiredIgnCount) next.push("");
-      while (next.length > requiredIgnCount) next.pop();
+      while (next.length < requiredPlayerCount) next.push("");
+      while (next.length > requiredPlayerCount) next.pop();
       return next;
     });
   }
 
   useEffect(() => {
-    if (tournament) updateIgnCount();
+    if (tournament) updatePlayerCount();
   }, [tournament?.teamSize]);
 
+  function openRegistration() {
+    setRegistrationStep(1);
+    setRegError("");
+    setRegOpen(true);
+  }
+
+  function validatePlayerDetails() {
+    if (!teamName.trim()) {
+      setRegError("Team name is required");
+      return false;
+    }
+    const emptyPlayer = playerNames.findIndex(name => !name.trim());
+    if (emptyPlayer >= 0) {
+      setRegError(`Player ${emptyPlayer + 1} real name is required`);
+      return false;
+    }
+    return true;
+  }
+
+  function continueRegistration() {
+    if (registrationStep === 1) {
+      if (!validatePlayerDetails()) return;
+      setRegError("");
+      setRegistrationStep(2);
+      return;
+    }
+    if (registrationStep === 2) {
+      setRegError("");
+      setRegistrationStep(3);
+    }
+  }
+
   async function submitRegistration() {
-    if (!teamName.trim()) { setRegError("Team name is required"); return; }
-    const emptyIgn = ignNames.findIndex(n => !n.trim());
-    if (emptyIgn >= 0) { setRegError(`Player ${emptyIgn + 1} IGN is required`); return; }
+    if (!validatePlayerDetails()) return;
     if (tournament?.isPaid && !utr.trim()) { setRegError("Enter UTR or transaction ID"); return; }
     if (tournament?.isPaid && !screenshotFile) { setRegError("Payment screenshot is required"); return; }
 
@@ -484,7 +431,7 @@ export default function TournamentDetail() {
 
     setRegError("");
 
-    const playerNames = `${teamName.trim()} | ${ignNames.join(", ")}`;
+    const submittedPlayerNames = `${teamName.trim()} | ${playerNames.join(", ")}`;
 
     setUploadingScreenshot(true);
     try {
@@ -493,17 +440,18 @@ export default function TournamentDetail() {
         data: {
           tournamentId: id,
           squadName: teamName.trim(),
-          playerNames,
+          playerNames: submittedPlayerNames,
           utrNumber: utr.trim().toUpperCase().replace(/\s+/g, "") || "-",
           paymentScreenshotUrl,
           guestUsername: user?.username || null,
         } as any,
       });
       setTeamName("");
-      setIgnNames(new Array(requiredIgnCount).fill(""));
+      setPlayerNames(new Array(requiredPlayerCount).fill(""));
       setUtr("");
       setScreenshotFile(null);
       setScreenshotPreview("");
+      setRegistrationStep(1);
     } catch (error: any) {
       setRegError(error?.message || "Registration failed. Please try again.");
     } finally {
@@ -987,7 +935,7 @@ export default function TournamentDetail() {
                   <XCircle size={22} style={{ color: "#ff4500" }} />
                   <div className="font-display font-bold text-foreground text-sm">Registration Declined</div>
                   {playerRegStatus?.squadName && <p className="text-xs" style={{ color: "var(--th-muted)" }}>{playerRegStatus.squadName} — {playerRegStatus.declineReason || "No reason given"}</p>}
-                  <button onClick={() => setRegOpen(true)} className="mt-1 px-4 py-2 rounded-xl text-xs font-bold" style={{ background: "rgba(255,107,53,0.12)", color: "#ff6b35" }}>
+                  <button onClick={openRegistration} className="mt-1 px-4 py-2 rounded-xl text-xs font-bold" style={{ background: "rgba(255,107,53,0.12)", color: "#ff6b35" }}>
                     Re-submit Registration
                   </button>
                 </div>
@@ -1010,7 +958,7 @@ export default function TournamentDetail() {
             );
             return (
               <button
-                onClick={() => { if (!user) { navigate("/settings"); return; } setRegOpen(true); }}
+                onClick={() => { if (!user) { navigate("/settings"); return; } openRegistration(); }}
                 className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 transition-smooth active:scale-95"
                 style={{ background: "linear-gradient(135deg, #ff6b35 0%, #ff4500 100%)" }}
               >
@@ -1065,12 +1013,6 @@ export default function TournamentDetail() {
                             <div className="flex items-center gap-2">
                               <span className="flex-shrink-0" style={{ color: "var(--th-dim)", minWidth: 70 }}>Phone:</span>
                               <span className="text-foreground">{reg.user.mobile}</span>
-                            </div>
-                          )}
-                          {reg.upiId && (
-                            <div className="flex items-center gap-2">
-                              <span className="flex-shrink-0" style={{ color: "var(--th-dim)", minWidth: 70 }}>UPI:</span>
-                              <span className="text-foreground">{reg.upiId}</span>
                             </div>
                           )}
                           {reg.paymentScreenshotUrl && (
@@ -1466,83 +1408,152 @@ export default function TournamentDetail() {
       {/* Registration Modal */}
       {regOpen && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}>
-          <div className="w-full max-w-md rounded-t-3xl p-6 flex flex-col gap-4 animate-in slide-in-from-bottom duration-300" style={{ background: "var(--th-card3)", maxHeight: "90dvh", overflowY: "auto" }}>
+          <div className="w-full max-w-md rounded-t-3xl p-5 sm:p-6 flex flex-col gap-4 animate-in slide-in-from-bottom duration-300" style={{ background: "var(--th-card3)", maxHeight: "92dvh", overflowY: "auto" }}>
             <div className="flex items-center justify-between">
-              <div className="font-display font-black text-xl text-foreground">Register Now</div>
-              <button onClick={() => setRegOpen(false)} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/10 transition-smooth">
+              <div>
+                <div className="font-display font-black text-xl text-foreground">Register your team</div>
+                <div className="text-xs mt-1" style={{ color: "var(--th-muted)" }}>
+                  Step {registrationStep} of 3
+                </div>
+              </div>
+              <button data-testid="button-close-registration" onClick={() => setRegOpen(false)} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/10 transition-smooth">
                 <XCircle size={16} className="text-muted-foreground" />
               </button>
             </div>
 
-            <div className="rounded-xl p-3" style={{ background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.2)" }}>
-              <div className="text-xs font-bold text-foreground">{tournament.name}</div>
-              <div className="text-xs mt-0.5" style={{ color: "#ff6b35" }}>
-                Entry: {tournament.isPaid && tournament.entryFee ? `₹${tournament.entryFee}` : "Free"}
-              </div>
-            </div>
-
-            {tournament.isPaid && tournament.upiId && tournament.entryFee && (
-              <UPIQRCode upiId={tournament.upiId} amount={tournament.entryFee} tournamentName={tournament.name} prizePool={tournament.prizePool} />
-            )}
-
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="text-xs font-bold text-muted-foreground mb-1 block">Team Name *</label>
-                <input value={teamName} onChange={e => setTeamName(e.target.value)} placeholder="Team Name"
-                  className="w-full h-11 rounded-xl px-4 text-sm"
-                  style={{ background: "var(--th-card2)", border: "1px solid var(--th-border2)", color: "var(--th-text)" }} />
-              </div>
-              {ignNames.map((ign, i) => (
-                <div key={i}>
-                  <label className="text-xs font-bold text-muted-foreground mb-1 block">
-                    {teamSize === "solo" ? "IGN (In-Game Name) *" : `Player ${i + 1} IGN *`}
-                  </label>
-                  <input value={ign} onChange={e => {
-                    const next = [...ignNames];
-                    next[i] = e.target.value;
-                    setIgnNames(next);
-                  }} placeholder="Enter in-game name"
-                    className="w-full h-11 rounded-xl px-4 text-sm"
-                    style={{ background: "var(--th-card2)", border: "1px solid var(--th-border2)", color: "var(--th-text)" }} />
+            <div className="grid grid-cols-3 gap-1.5" aria-label="Registration steps">
+              {[
+                { number: 1, label: "Team" },
+                { number: 2, label: "Payment" },
+                { number: 3, label: "Verify" },
+              ].map(step => (
+                <div
+                  key={step.number}
+                  className="rounded-xl px-2 py-2 text-center"
+                  style={{
+                    background: registrationStep === step.number ? "rgba(255,107,53,0.14)" : registrationStep > step.number ? "rgba(34,197,94,0.10)" : "var(--th-card2)",
+                    border: `1px solid ${registrationStep === step.number ? "rgba(255,107,53,0.4)" : registrationStep > step.number ? "rgba(34,197,94,0.25)" : "var(--th-border)"}`,
+                  }}
+                  data-testid={`registration-step-${step.number}`}
+                >
+                  <div className="text-[10px] font-black" style={{ color: registrationStep === step.number ? "#ff6b35" : registrationStep > step.number ? "#4ade80" : "var(--th-dim)" }}>
+                    {step.number}
+                  </div>
+                  <div className="text-[10px] font-bold mt-0.5" style={{ color: registrationStep === step.number ? "var(--th-text)" : "var(--th-muted)" }}>
+                    {step.label}
+                  </div>
                 </div>
               ))}
-              {tournament.isPaid && (
-                <>
-                  <div>
-                    <label className="text-xs font-bold text-muted-foreground mb-1 block">UTR / Transaction ID *</label>
-                    <input value={utr} onChange={e => setUtr(e.target.value)} placeholder="Enter 12-digit UTR number"
-                      className="w-full h-11 rounded-xl px-4 text-sm"
-                      style={{ background: "var(--th-card2)", border: "1px solid var(--th-border2)", color: "var(--th-text)" }} />
-                    <p className="text-xs mt-1" style={{ color: "var(--th-dim)" }}>Find UTR in your payment app under transaction details.</p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-muted-foreground mb-1 block">Payment Screenshot *</label>
-                    <label className="block cursor-pointer">
-                      <div className="w-full rounded-xl border-2 border-dashed flex flex-col items-center justify-center py-6 gap-2 transition-smooth hover:border-orange-500/50"
-                        style={{ borderColor: screenshotPreview ? "rgba(34,197,94,0.4)" : "var(--th-border2)" }}>
-                        {screenshotPreview ? (
-                          <img src={screenshotPreview} alt="Payment screenshot preview" className="max-h-40 object-contain rounded-lg" />
-                        ) : (
-                          <>
-                            <Camera size={24} style={{ color: "var(--th-dim)" }} />
-                             <span className="text-xs text-muted-foreground">PNG, JPG up to 10MB</span>
-                          </>
-                        )}
-                      </div>
-                      <input type="file" accept="image/*" className="hidden" onChange={handleScreenshot} />
-                    </label>
-                    {screenshotPreview && (
-                      <button onClick={() => { setScreenshotFile(null); setScreenshotPreview(""); }}
-                        className="text-xs mt-1" style={{ color: "#ff4500" }}>Remove image</button>
-                    )}
-                  </div>
-                </>
-              )}
             </div>
+
+            {registrationStep === 1 && (
+              <div className="flex flex-col gap-3">
+                <div className="rounded-xl p-3" style={{ background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.2)" }}>
+                  <div className="text-xs font-bold text-foreground">{tournament.name}</div>
+                  <div className="text-xs mt-0.5" style={{ color: "#ff6b35" }}>
+                    {tournament.isPaid && tournament.entryFee ? `Entry: ₹${tournament.entryFee}` : "Free entry"}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground mb-1 block">Team name *</label>
+                  <input
+                    data-testid="input-team-name"
+                    value={teamName}
+                    onChange={e => setTeamName(e.target.value)}
+                    placeholder="Enter your team name"
+                    autoComplete="organization"
+                    className="w-full h-11 rounded-xl px-4 text-sm"
+                    style={{ background: "var(--th-card2)", border: "1px solid var(--th-border2)", color: "var(--th-text)" }}
+                  />
+                </div>
+                <div className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--th-dim)" }}>Player real names</div>
+                {playerNames.map((name, i) => (
+                  <div key={i}>
+                    <label className="text-xs font-bold text-muted-foreground mb-1 block">
+                      {teamSize === "solo" ? "Player real name *" : `Player ${i + 1} real name *`}
+                    </label>
+                    <input
+                      data-testid={`input-player-real-name-${i + 1}`}
+                      value={name}
+                      onChange={e => {
+                        const next = [...playerNames];
+                        next[i] = e.target.value;
+                        setPlayerNames(next);
+                      }}
+                      placeholder="Enter full name"
+                      autoComplete="name"
+                      className="w-full h-11 rounded-xl px-4 text-sm"
+                      style={{ background: "var(--th-card2)", border: "1px solid var(--th-border2)", color: "var(--th-text)" }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {registrationStep === 2 && (
+              <div className="flex flex-col gap-3">
+                {tournament.isPaid ? (
+                  <UPIQRCode qrUrl={(tournament as any).qrUrl} amount={Number(tournament.entryFee || 0)} />
+                ) : (
+                  <div className="rounded-2xl p-6 flex flex-col items-center gap-2 text-center" style={{ background: "var(--th-card)", border: "1px solid var(--th-border)" }}>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "var(--th-dim)" }}>Entry amount</div>
+                    <div className="font-display font-black text-2xl text-foreground">₹0</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {registrationStep === 3 && (
+              <div className="flex flex-col gap-3">
+                {tournament.isPaid ? (
+                  <>
+                    <div>
+                      <label className="text-xs font-bold text-muted-foreground mb-1 block">UTR or transaction ID *</label>
+                      <input
+                        data-testid="input-payment-utr"
+                        value={utr}
+                        onChange={e => setUtr(e.target.value)}
+                        placeholder="Enter the payment reference"
+                        autoComplete="off"
+                        className="w-full h-11 rounded-xl px-4 text-sm"
+                        style={{ background: "var(--th-card2)", border: "1px solid var(--th-border2)", color: "var(--th-text)" }}
+                      />
+                      <p className="text-xs mt-1" style={{ color: "var(--th-dim)" }}>Find this reference in your payment app transaction details.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-muted-foreground mb-1 block">Payment screenshot *</label>
+                      <label className="block cursor-pointer">
+                        <div className="w-full rounded-xl border-2 border-dashed flex flex-col items-center justify-center py-6 gap-2 transition-smooth hover:border-orange-500/50"
+                          style={{ borderColor: screenshotPreview ? "rgba(34,197,94,0.4)" : "var(--th-border2)" }}>
+                          {screenshotPreview ? (
+                            <img src={screenshotPreview} alt="Payment screenshot preview" className="max-h-40 object-contain rounded-lg" data-testid="img-payment-screenshot-preview" />
+                          ) : (
+                            <>
+                              <Camera size={24} style={{ color: "var(--th-dim)" }} />
+                              <span className="text-xs text-muted-foreground">Any image format up to 10MB</span>
+                            </>
+                          )}
+                        </div>
+                        <input data-testid="input-payment-screenshot" type="file" accept="image/*" className="hidden" onChange={handleScreenshot} />
+                      </label>
+                      {screenshotPreview && (
+                        <button data-testid="button-remove-payment-screenshot" onClick={() => { setScreenshotFile(null); setScreenshotPreview(""); }}
+                          className="text-xs mt-1" style={{ color: "#ff4500" }}>Remove image</button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-2xl p-5 text-center" style={{ background: "var(--th-card)", border: "1px solid var(--th-border)" }}>
+                    <div className="text-sm font-bold text-foreground">Ready to submit</div>
+                    <p className="text-xs mt-1" style={{ color: "var(--th-muted)" }}>This tournament has no payment step.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {regError && <p className="text-xs font-semibold" style={{ color: "#ff4500" }}>{regError}</p>}
 
-            {tournament.isPaid && (
+            {tournament.isPaid && registrationStep === 3 && (
               <div className="rounded-xl p-3 text-center" style={{ background: "rgba(255,69,0,0.06)", border: "1px solid rgba(255,69,0,0.15)" }}>
                 <p className="text-xs" style={{ color: "var(--th-muted)" }}>
                   <span className="font-bold" style={{ color: "#ff4500" }}>No Refund Policy: </span>
@@ -1552,16 +1563,32 @@ export default function TournamentDetail() {
             )}
 
             {/* 5-min refund countdown when tournament is full */}
-            {tournament.isPaid && isFull && tournament.status === "upcoming" && (
+            {tournament.isPaid && registrationStep === 3 && isFull && tournament.status === "upcoming" && (
               <RefundCountdown tournamentId={id} />
             )}
 
-            <button onClick={submitRegistration} disabled={createReg.isPending || uploadingScreenshot}
-              className="w-full h-12 rounded-2xl font-black text-base flex items-center justify-center gap-2 transition-smooth active:scale-95 disabled:opacity-50"
-              style={{ background: "linear-gradient(135deg, #ff6b35, #ff4500)", color: "#0a0e27" }}>
-              {createReg.isPending || uploadingScreenshot ? <div className="w-5 h-5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : null}
-              {uploadingScreenshot ? "Uploading screenshot..." : createReg.isPending ? "Submitting..." : "Submit Registration"}
-            </button>
+            <div className="flex gap-2">
+              {registrationStep > 1 && (
+                <button
+                  data-testid="button-registration-back"
+                  onClick={() => { setRegError(""); setRegistrationStep(step => (step - 1) as 1 | 2 | 3); }}
+                  className="flex-1 h-12 rounded-2xl font-bold text-sm transition-smooth active:scale-95"
+                  style={{ background: "var(--th-card2)", color: "var(--th-muted)", border: "1px solid var(--th-border2)" }}
+                >
+                  Back
+                </button>
+              )}
+              <button
+                data-testid={registrationStep === 3 ? "button-submit-registration" : "button-registration-continue"}
+                onClick={registrationStep === 3 ? submitRegistration : continueRegistration}
+                disabled={createReg.isPending || uploadingScreenshot}
+                className="flex-[2] h-12 rounded-2xl font-black text-base flex items-center justify-center gap-2 transition-smooth active:scale-95 disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #ff6b35, #ff4500)", color: "#0a0e27" }}
+              >
+                {createReg.isPending || uploadingScreenshot ? <div className="w-5 h-5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : null}
+                {uploadingScreenshot ? "Uploading screenshot..." : createReg.isPending ? "Submitting..." : registrationStep === 3 ? "Submit registration" : registrationStep === 2 ? "Continue to verification" : "Continue to payment"}
+              </button>
+            </div>
           </div>
         </div>
       )}

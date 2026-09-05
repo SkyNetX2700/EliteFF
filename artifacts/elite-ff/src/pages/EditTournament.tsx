@@ -5,6 +5,8 @@ import { useGetTournament, useUpdateTournament } from "@workspace/api-client-rea
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime12 } from "@/lib/dateFormat";
+import { apiFetch } from "@/lib/auth";
+import QRCode from "qrcode";
 
 const TYPES = ["Battle Royale", "Clash Squad", "Custom"];
 const MODES = ["Squad", "Duo", "Solo"];
@@ -47,6 +49,26 @@ function compressImage(file: File): Promise<string> {
   });
 }
 
+async function uploadTournamentPoster(file: File) {
+  const contentType = file.type || "image/jpeg";
+  if (!contentType.startsWith("image/")) throw new Error("Choose an image file for the tournament poster");
+  if (file.size <= 0 || file.size > 10 * 1024 * 1024) throw new Error("Tournament poster must be 10MB or smaller");
+  const response = await apiFetch("/api/storage/uploads/request-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: file.name || "tournament-poster.jpg", size: file.size, contentType, purpose: "tournament-poster" }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.uploadURL || !body.objectPath) throw new Error(body.message || `Unable to prepare poster upload (${response.status})`);
+  const uploaded = await fetch(body.uploadURL, {
+    method: body.uploadMethod || "PUT",
+    headers: { "Content-Type": contentType, ...(body.uploadHeaders || {}) },
+    body: file,
+  });
+  if (!uploaded.ok) throw new Error(`Tournament poster upload failed (${uploaded.status})`);
+  return body.objectPath as string;
+}
+
 function divider() {
   return <div style={{ height: 1, background: "var(--th-card2)" }} />;
 }
@@ -66,6 +88,17 @@ export default function EditTournament() {
   const posterRef = useRef<HTMLInputElement>(null);
 
   const { data: tournament, isLoading } = useGetTournament(id, { query: { queryKey: ["getTournament", id] } as any });
+  const [hostTournament, setHostTournament] = useState<any>(null);
+
+  useEffect(() => {
+    if (!id || !user?.isHost) return;
+    let active = true;
+    apiFetch(`/api/tournaments/${id}/full`)
+      .then(async response => response.ok ? response.json() : null)
+      .then(data => { if (active && data) setHostTournament(data); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [id, user?.isHost]);
 
   /* ── Core form ───────────────────────────────────────── */
   const [form, setForm] = useState({
@@ -77,6 +110,8 @@ export default function EditTournament() {
 
   /* ── localStorage-backed config ─────────────────────── */
   const [posterBase64, setPosterBase64] = useState("");
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
   const [matchCount, setMatchCount] = useState(3);
   const [maps, setMaps] = useState<string[]>(Array(10).fill("Bermuda"));
   const [pointPreset, setPointPreset] = useState<"standard" | "aggressive" | "kills" | "custom">("standard");
@@ -93,37 +128,38 @@ export default function EditTournament() {
 
   /* Populate form from API + localStorage once tournament loads */
   useEffect(() => {
-    if (!tournament) return;
+    const source = hostTournament ?? tournament;
+    if (!source) return;
 
     setForm({
-      name: tournament.name ?? "",
-      type: tournament.type ?? "Battle Royale",
-      mode: tournament.mode ?? "Squad",
-      teamSize: String(tournament.teamSize ?? "4"),
-      entryFee: tournament.entryFee != null ? String(tournament.entryFee) : "",
-      prizePool: tournament.prizePool != null ? String(tournament.prizePool) : "",
-      maxSlots: String(tournament.maxSlots ?? 12),
-      upiId: tournament.upiId ?? "",
-      scheduledAt: tournament.scheduledAt ? new Date(tournament.scheduledAt).toISOString().slice(0, 16) : "",
-      rules: tournament.rules ?? "",
-      roomId: (tournament as any).roomId ?? "",
-      roomPassword: (tournament as any).roomPassword ?? "",
-      isPaid: tournament.isPaid ?? true,
-      timerEnabled: tournament.timerEnabled ?? false,
-      status: tournament.status ?? "upcoming",
+      name: source.name ?? "",
+      type: source.type ?? "Battle Royale",
+      mode: source.mode ?? "Squad",
+      teamSize: String(source.teamSize ?? "4"),
+      entryFee: source.entryFee != null ? String(source.entryFee) : "",
+      prizePool: source.prizePool != null ? String(source.prizePool) : "",
+      maxSlots: String(source.maxSlots ?? 12),
+      upiId: source.upiId ?? "",
+      scheduledAt: source.scheduledAt ? new Date(source.scheduledAt).toISOString().slice(0, 16) : "",
+      rules: source.rules ?? "",
+      roomId: source.roomId ?? "",
+      roomPassword: source.roomPassword ?? "",
+      isPaid: source.isPaid ?? true,
+      timerEnabled: source.timerEnabled ?? false,
+      status: source.status ?? "upcoming",
     });
 
     /* Poster */
-    const poster = localStorage.getItem(`eliteff_tournament_poster_${id}`);
+    const poster = source.posterUrl || localStorage.getItem(`eliteff_tournament_poster_${id}`);
     if (poster) setPosterBase64(poster);
 
     /* Shared match config, with localStorage fallback for older tournaments */
     try {
-      const storedMaps = typeof (tournament as any).maps === "string"
-        ? JSON.parse((tournament as any).maps)
-        : (tournament as any).maps;
-      const cfg = (tournament as any).matchCount || storedMaps
-        ? { matchCount: (tournament as any).matchCount, maps: storedMaps }
+      const storedMaps = typeof source.maps === "string"
+        ? JSON.parse(source.maps)
+        : source.maps;
+      const cfg = source.matchCount || storedMaps
+        ? { matchCount: source.matchCount, maps: storedMaps }
         : JSON.parse(localStorage.getItem(`eliteff_tournament_config_${id}`) || "null");
       if (cfg) {
         setMatchCount(cfg.matchCount ?? 3);
@@ -135,11 +171,11 @@ export default function EditTournament() {
 
     /* Point system */
     try {
-      const serverPlacements = typeof (tournament as any).placements === "string"
-        ? JSON.parse((tournament as any).placements)
-        : (tournament as any).placements;
-      const pts = (serverPlacements || (tournament as any).killPoints != null)
-        ? { killPoints: (tournament as any).killPoints, placements: serverPlacements }
+      const serverPlacements = typeof source.placements === "string"
+        ? JSON.parse(source.placements)
+        : source.placements;
+      const pts = (serverPlacements || source.killPoints != null)
+        ? { killPoints: source.killPoints, placements: serverPlacements }
         : JSON.parse(localStorage.getItem(`eliteff_tournament_points_${id}`) || "null");
       if (pts) {
         setKillPoints(pts.killPoints ?? 1);
@@ -150,9 +186,9 @@ export default function EditTournament() {
 
     /* Prize distribution */
     try {
-      const serverPrizes = typeof (tournament as any).prizeDistribution === "string"
-        ? JSON.parse((tournament as any).prizeDistribution)
-        : (tournament as any).prizeDistribution;
+      const serverPrizes = typeof source.prizeDistribution === "string"
+        ? JSON.parse(source.prizeDistribution)
+        : source.prizeDistribution;
       const priz = serverPrizes
         ? { ranks: serverPrizes }
         : JSON.parse(localStorage.getItem(`eliteff_tournament_prizes_${id}`) || "null");
@@ -162,7 +198,7 @@ export default function EditTournament() {
         })));
       }
     } catch { /* ignore */ }
-  }, [tournament, id]);
+  }, [tournament, hostTournament, id]);
 
   const update = useUpdateTournament({
     mutation: {
@@ -200,39 +236,60 @@ export default function EditTournament() {
   async function handlePosterPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    try { setPosterBase64(await compressImage(file)); }
+    if (!file.type.startsWith("image/")) { setError("Choose an image file for the poster"); return; }
+    if (file.size > 10 * 1024 * 1024) { setError("Tournament poster must be 10MB or smaller"); return; }
+    try {
+      setPosterFile(file);
+      setPosterBase64(await compressImage(file));
+    }
     catch { setError("Failed to process image"); }
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!form.name.trim()) { setError("Tournament name is required"); return; }
     setError("");
-    update.mutate({
-      id,
-      data: {
-        name: form.name.trim(),
-        type: form.type,
-        mode: form.mode,
-        teamSize: form.teamSize,
-        matchCount,
-        maps: maps.slice(0, matchCount),
-        killPoints,
-        placements,
-        prizeDistribution: prizeRanks
-          .filter(r => Number(r.amount) > 0)
-          .map(r => ({ rank: r.rank, label: r.label, amount: Number(r.amount) })),
-        entryFee: form.entryFee ? Number(form.entryFee) : null,
-        prizePool: form.prizePool ? Number(form.prizePool) : null,
-        maxSlots: parseInt(form.maxSlots) || 12,
-        upiId: form.upiId || null,
-        scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : undefined,
-        rules: form.rules || null,
-        roomId: form.roomId || null,
-        roomPassword: form.roomPassword || null,
-        isPaid: form.isPaid,
-        timerEnabled: form.timerEnabled,
-      } as any,
-    });
+    setUploadingPoster(Boolean(posterFile));
+    try {
+      const posterUrl = posterFile ? await uploadTournamentPoster(posterFile) : (posterBase64.startsWith("http") ? posterBase64 : null);
+      const qrUrl = form.isPaid
+        ? await QRCode.toDataURL(
+            `upi://pay?pa=${encodeURIComponent(form.upiId.trim())}&pn=EliteFF&am=${Number(form.entryFee || 0)}&tn=${encodeURIComponent(`Entry: ${form.name.trim()}`)}`,
+            { width: 320, margin: 2, errorCorrectionLevel: "M", color: { dark: "#0a0e27", light: "#ffffff" } },
+          )
+        : null;
+      update.mutate({
+        id,
+        data: {
+          name: form.name.trim(),
+          type: form.type,
+          mode: form.mode,
+          teamSize: form.teamSize,
+          matchCount,
+          maps: maps.slice(0, matchCount),
+          killPoints,
+          placements,
+          prizeDistribution: prizeRanks
+            .filter(r => Number(r.amount) > 0)
+            .map(r => ({ rank: r.rank, label: r.label, amount: Number(r.amount) })),
+          entryFee: form.entryFee ? Number(form.entryFee) : null,
+          prizePool: form.prizePool ? Number(form.prizePool) : null,
+          maxSlots: parseInt(form.maxSlots) || 12,
+          upiId: form.upiId || null,
+          qrUrl,
+          scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : undefined,
+          rules: form.rules || null,
+          posterUrl,
+          roomId: form.roomId || null,
+          roomPassword: form.roomPassword || null,
+          isPaid: form.isPaid,
+          timerEnabled: form.timerEnabled,
+        } as any,
+      });
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Unable to upload tournament poster");
+    } finally {
+      setUploadingPoster(false);
+    }
   }
 
   function autoSplit(splits: number[]) {
@@ -665,7 +722,7 @@ export default function EditTournament() {
 
       <button
         onClick={handleSubmit}
-        disabled={update.isPending}
+        disabled={update.isPending || uploadingPoster}
         className="w-full h-12 rounded-2xl font-black text-base flex items-center justify-center gap-2 transition-smooth active:scale-95 disabled:opacity-50"
         style={{
           background: saved ? "rgba(34,197,94,0.2)" : "linear-gradient(135deg, #ff6b35, #ff4500)",
@@ -674,10 +731,12 @@ export default function EditTournament() {
         }}
         data-testid="edit.submit_button"
       >
-        {update.isPending
+        {uploadingPoster
+          ? <div className="w-5 h-5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+          : update.isPending
           ? <div className="w-5 h-5 rounded-full border-2 border-current border-t-transparent animate-spin" />
           : <Save size={18} />}
-        {update.isPending ? "Saving..." : saved ? "✓ Changes Saved!" : "Save Changes"}
+        {uploadingPoster ? "Uploading poster..." : update.isPending ? "Saving..." : saved ? "✓ Changes Saved!" : "Save Changes"}
       </button>
     </div>
   );

@@ -127,6 +127,8 @@ export interface CreateTournamentBody {
   posterUrl?: string | null;
   /** @nullable */
   upiId?: string | null;
+  /** @nullable */
+  qrUrl?: string | null;
   isPaid: boolean;
   timerEnabled: boolean;
   isPrivate?: boolean;
@@ -165,6 +167,8 @@ export interface UpdateTournamentBody {
   posterUrl?: string | null;
   /** @nullable */
   upiId?: string | null;
+  /** @nullable */
+  qrUrl?: string | null;
   /** @nullable */
   isPaid?: boolean | null;
   /** @nullable */

@@ -6,6 +6,8 @@ const router = Router();
 const objectStorage = new ObjectStorageService();
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const SUPABASE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET?.trim() || "payment-screenshots";
+const SUPABASE_POSTER_BUCKET = process.env.SUPABASE_POSTER_BUCKET?.trim() || "tournament-posters";
+const SUPABASE_RESULTS_BUCKET = process.env.SUPABASE_RESULTS_BUCKET?.trim() || "match-results";
 
 function supabaseStorageConfig(req: any) {
   // Vercel does not provide Replit's object-storage sidecar. Use the
@@ -25,7 +27,15 @@ router.post("/storage/uploads/request-url", async (req: any, res) => {
     return;
   }
 
-  const { name, size, contentType } = req.body ?? {};
+  const { name, size, contentType, purpose = "payment-screenshot" } = req.body ?? {};
+  if (purpose !== "payment-screenshot" && purpose !== "tournament-poster" && purpose !== "match-result") {
+    res.status(400).json({ message: "Invalid image upload purpose" });
+    return;
+  }
+  if ((purpose === "tournament-poster" || purpose === "match-result") && req.userRole !== "host") {
+    res.status(403).json({ message: "Only hosts can upload tournament posters" });
+    return;
+  }
   if (
     typeof name !== "string" ||
     typeof size !== "number" ||
@@ -42,12 +52,17 @@ router.post("/storage/uploads/request-url", async (req: any, res) => {
   try {
     const supabase = supabaseStorageConfig(req);
     if (supabase) {
+      const bucket = purpose === "tournament-poster"
+        ? SUPABASE_POSTER_BUCKET
+        : purpose === "match-result"
+        ? SUPABASE_RESULTS_BUCKET
+        : SUPABASE_BUCKET;
       const extension = (name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
       const owner = String(req.supabaseUserId || req.userId);
       const objectName = `${owner}/${randomUUID()}.${extension}`;
       const encodedObjectName = objectName.split("/").map(encodeURIComponent).join("/");
-      const uploadURL = `${supabase.url}/storage/v1/object/${encodeURIComponent(SUPABASE_BUCKET)}/${encodedObjectName}`;
-      const publicURL = `${supabase.url}/storage/v1/object/public/${encodeURIComponent(SUPABASE_BUCKET)}/${encodedObjectName}`;
+      const uploadURL = `${supabase.url}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedObjectName}`;
+      const publicURL = `${supabase.url}/storage/v1/object/public/${encodeURIComponent(bucket)}/${encodedObjectName}`;
       res.json({
         uploadURL,
         uploadMethod: "POST",
@@ -57,7 +72,7 @@ router.post("/storage/uploads/request-url", async (req: any, res) => {
           "x-upsert": "false",
         },
         objectPath: publicURL,
-        metadata: { name, size, contentType },
+        metadata: { name, size, contentType, purpose, bucket },
       });
       return;
     }

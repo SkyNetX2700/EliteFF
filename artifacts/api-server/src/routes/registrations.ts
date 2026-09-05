@@ -90,17 +90,25 @@ router.get("/", auth, async (req: any, res) => {
 router.post("/", async (req: any, res) => {
   try {
     const { tournamentId, squadName, playerNames, paymentScreenshotUrl, utrNumber, guestUsername } = req.body;
-    if (!tournamentId || !squadName || !playerNames || !utrNumber) {
-      res.status(400).json({ message: "Tournament ID, squad name, player names, and UTR number are required" });
+    if (!tournamentId || !squadName || !playerNames) {
+      res.status(400).json({ message: "Tournament ID, team name, and player names are required" });
       return;
     }
-    const normalizedUtr = String(utrNumber).trim().toUpperCase().replace(/\s+/g, "");
-    if (
+    const tournament = await tournamentById(Number(tournamentId));
+    if (!tournament) {
+      res.status(404).json({ message: "Tournament not found" });
+      return;
+    }
+    const isPaid = Boolean(tournament.isPaid);
+    const normalizedUtr = isPaid
+      ? String(utrNumber ?? "").trim().toUpperCase().replace(/\s+/g, "")
+      : "-";
+    if (isPaid && (
       normalizedUtr.length < 6 ||
       normalizedUtr.length > 64 ||
       !/^[A-Z0-9-]+$/.test(normalizedUtr) ||
       normalizedUtr === "-"
-    ) {
+    )) {
       res.status(400).json({ message: "Enter a valid UTR / transaction ID using 6–64 letters or numbers." });
       return;
     }
@@ -123,7 +131,7 @@ router.post("/", async (req: any, res) => {
       .from(registrationsTable)
       .where(duplicateWhere)
       .limit(1);
-    if (duplicate) {
+    if (isPaid && duplicate) {
       res.status(409).json({ message: "This UTR / transaction ID is not valid because it has already been used." });
       return;
     }
@@ -145,7 +153,6 @@ router.post("/", async (req: any, res) => {
       throw result.error;
     }
     const row = await serializeRegistration(result.data);
-    const tournament = await tournamentById(Number(tournamentId));
     await dataClient().from("history").insert({
       user_id: userId, tournament_id: tournamentId, tournament_name: tournament?.name || "Unknown",
       action: "registered",

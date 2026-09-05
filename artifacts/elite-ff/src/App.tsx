@@ -36,6 +36,12 @@ function AppInner() {
   const { humanVerified } = useAppContext();
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+  // The verification screen is the first screen for every new browser session.
+  // Keep it outside the route switch so sign-in and sign-up cannot bypass it.
+  if (!humanVerified) {
+    return <HumanVerification />;
+  }
+
   return (
     <WouterRouter base={basePath}>
       <Switch>
@@ -46,7 +52,7 @@ function AppInner() {
           <AuthPage kind="sign-up" basePath={basePath} />
         </Route>
         <Route>
-          {humanVerified ? <AppShell /> : <HumanVerification />}
+          <AppShell />
         </Route>
       </Switch>
     </WouterRouter>

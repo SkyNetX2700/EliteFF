@@ -25,10 +25,34 @@ insert into storage.buckets (id, name, public)
 values ('payment-screenshots', 'payment-screenshots', true)
 on conflict (id) do update set public = excluded.public;
 
+insert into storage.buckets (id, name, public)
+values ('tournament-posters', 'tournament-posters', true)
+on conflict (id) do update set public = excluded.public;
+
+insert into storage.buckets (id, name, public)
+values ('match-results', 'match-results', true)
+on conflict (id) do update set public = excluded.public;
+
 drop policy if exists "Authenticated players can upload payment screenshots" on storage.objects;
 create policy "Authenticated players can upload payment screenshots"
   on storage.objects for insert to authenticated
   with check (
     bucket_id = 'payment-screenshots'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Authenticated users can upload tournament posters" on storage.objects;
+create policy "Authenticated users can upload tournament posters"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'tournament-posters'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Authenticated hosts can upload match results" on storage.objects;
+create policy "Authenticated hosts can upload match results"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'match-results'
     and (storage.foldername(name))[1] = auth.uid()::text
   );

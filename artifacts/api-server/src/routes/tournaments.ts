@@ -27,6 +27,21 @@ function parseOptionalMoney(value: unknown) {
   return Number.isInteger(amount) && amount >= 0 ? amount : null;
 }
 
+function parsePaymentConfig(body: any) {
+  const isPaid = Boolean(body.isPaid);
+  const upiId = isPaid && typeof body.upiId === "string" ? body.upiId.trim() : null;
+  const qrUrl = isPaid && typeof body.qrUrl === "string" && body.qrUrl.startsWith("data:image/")
+    ? body.qrUrl
+    : null;
+  if (isPaid && (!upiId || !/^[^@\s]+@[A-Za-z0-9._-]+$/.test(upiId))) {
+    return { error: "Paid tournaments need a valid host payment UPI ID" };
+  }
+  if (isPaid && (!qrUrl || qrUrl.length > 256 * 1024)) {
+    return { error: "Paid tournaments need a valid payment QR image" };
+  }
+  return { upiId, qrUrl };
+}
+
 async function notifyUsers(tournamentId: number, title: string, message: string, type: string) {
   const { data: registrations, error } = await dataClient()
     .from("registrations").select("user_id").eq("tournament_id", tournamentId);
@@ -85,6 +100,11 @@ router.post("/", auth, hostOnly, async (req: any, res) => {
       res.status(400).json({ message: "Entry fee and prize pool must be whole, non-negative amounts" });
       return;
     }
+    const paymentConfig = parsePaymentConfig(body);
+    if ("error" in paymentConfig) {
+      res.status(400).json({ message: paymentConfig.error });
+      return;
+    }
     const payload = {
       name: String(body.name).trim(),
       type: String(body.type),
@@ -106,7 +126,8 @@ router.post("/", auth, hostOnly, async (req: any, res) => {
       scheduledAt,
       rules: body.rules || null,
       posterUrl: body.posterUrl || null,
-      upiId: body.upiId || null,
+      upiId: paymentConfig.upiId,
+      qrUrl: paymentConfig.qrUrl,
       isPaid: body.isPaid ?? false,
       timerEnabled: body.timerEnabled ?? true,
       hostId,
@@ -172,10 +193,20 @@ router.put("/:id", auth, hostOnly, async (req: any, res) => {
       matchCount: "match_count", maps: "maps", killPoints: "kill_points", placements: "placements",
       prizeDistribution: "prize_distribution",
       maxSlots: "max_slots", rules: "rules", posterUrl: "poster_url", upiId: "upi_id",
+      qrUrl: "qr_url",
       isPaid: "is_paid", timerEnabled: "timer_enabled", roomId: "room_id", roomPassword: "room_password",
       isPrivate: "is_private", status: "status",
     };
     for (const [from, to] of Object.entries(fields)) if (body[from] !== undefined) updates[to] = body[from];
+    if (body.isPaid !== undefined || body.upiId !== undefined || body.qrUrl !== undefined) {
+      const paymentConfig = parsePaymentConfig({ ...body, isPaid: body.isPaid ?? true });
+      if ("error" in paymentConfig) {
+        res.status(400).json({ message: paymentConfig.error });
+        return;
+      }
+      updates.upi_id = paymentConfig.upiId;
+      updates.qr_url = paymentConfig.qrUrl;
+    }
     for (const key of ["maps", "placements", "prizeDistribution"]) {
       const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
       if (body[key] !== undefined && Array.isArray(body[key])) updates[snakeKey] = JSON.stringify(body[key]);

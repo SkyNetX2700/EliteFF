@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Plus, ImagePlus, CheckCircle, Trash2, AlertCircle } from "lucide-react";
+import { X, Plus, ImagePlus, CheckCircle, Trash2, AlertCircle, ShieldCheck, CalendarDays, Users, CircleDollarSign } from "lucide-react";
 import { useCreateTournament, type Tournament } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime12 } from "@/lib/dateFormat";
+import { apiFetch } from "@/lib/auth";
+import QRCode from "qrcode";
 
 interface Props { open: boolean; onClose: () => void; }
 
@@ -54,6 +56,31 @@ function compressImage(file: File): Promise<string> {
   });
 }
 
+async function uploadTournamentPoster(file: File) {
+  const contentType = file.type || "image/jpeg";
+  if (!contentType.startsWith("image/")) throw new Error("Choose an image file for the tournament poster");
+  if (file.size <= 0 || file.size > 10 * 1024 * 1024) throw new Error("Tournament poster must be 10MB or smaller");
+  const response = await apiFetch("/api/storage/uploads/request-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: file.name || "tournament-poster.jpg", size: file.size, contentType, purpose: "tournament-poster" }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.uploadURL || !body.objectPath) {
+    throw new Error(body.message || `Unable to prepare tournament poster upload (${response.status})`);
+  }
+  const uploadResponse = await fetch(body.uploadURL, {
+    method: body.uploadMethod || "PUT",
+    headers: { "Content-Type": contentType, ...(body.uploadHeaders || {}) },
+    body: file,
+  });
+  if (!uploadResponse.ok) {
+    const uploadError = await uploadResponse.text().catch(() => "");
+    throw new Error(uploadError || `Tournament poster upload failed (${uploadResponse.status})`);
+  }
+  return body.objectPath as string;
+}
+
 export default function CreateTournamentModal({ open, onClose }: Props) {
   const qc = useQueryClient();
   const posterRef = useRef<HTMLInputElement>(null);
@@ -65,6 +92,8 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
     isPaid: true, timerEnabled: false, isPrivate: false,
   });
   const [posterBase64, setPosterBase64] = useState<string>("");
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
   const [matchCount, setMatchCount] = useState(3);
   const [maps, setMaps] = useState<string[]>(Array(10).fill("Bermuda"));
   const [pointPreset, setPointPreset] = useState<"standard" | "aggressive" | "kills" | "custom">("standard");
@@ -87,12 +116,19 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
     return () => window.clearInterval(interval);
   }, [open]);
 
+  const setupSteps = [
+    Boolean(form.name.trim()),
+    Boolean(form.scheduledAt),
+    Boolean(matchCount > 0 && maps[0]),
+    form.isPaid ? Boolean(form.entryFee && form.upiId.trim()) : true,
+  ];
+  const completedSteps = setupSteps.filter(Boolean).length;
+
   const create = useCreateTournament({
     mutation: {
       onSuccess: (data: Tournament) => {
         const tid = data.id;
         if (tid) {
-          if (posterBase64) localStorage.setItem(`eliteff_tournament_poster_${tid}`, posterBase64);
           localStorage.setItem(`eliteff_tournament_config_${tid}`, JSON.stringify({
             matchCount,
             maps: maps.slice(0, matchCount),
@@ -115,14 +151,16 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
           return [data, ...current.filter((item: any) => item?.id !== data.id)];
         });
         qc.invalidateQueries({ queryKey: ["getTournaments"] });
-        reset();
+         reset();
         onClose();
       },
       onError: (e: any) => {
         const message = e?.message || "Unable to create the tournament.";
-        setError(message.includes("FUNCTION_INVOCATION_FAILED")
-          ? "The server could not save this tournament. Please check the API database connection and try again."
-          : message);
+        setError(
+          message.includes("FUNCTION_INVOCATION_FAILED") || message.includes("API server could not be started")
+            ? "The tournament service is unavailable. Confirm the deployed API has DATABASE_URL and the Supabase schema, then try again."
+            : message,
+        );
       },
     },
   });
@@ -130,6 +168,8 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
   function reset() {
     setForm({ name: "", type: "Battle Royale", mode: "Squad", teamSize: "4", entryFee: "", prizePool: "", maxSlots: "12", upiId: "", scheduledAt: "", rules: "", isPaid: true, timerEnabled: false, isPrivate: false });
     setPosterBase64("");
+    setPosterFile(null);
+    setUploadingPoster(false);
     setMatchCount(3);
     setMaps(Array(10).fill("Bermuda"));
     setPointPreset("standard");
@@ -146,14 +186,24 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
   async function handlePosterPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    try { setPosterBase64(await compressImage(file)); }
+    if (!file.type.startsWith("image/")) { setError("Choose an image file for the poster"); return; }
+    if (file.size > 10 * 1024 * 1024) { setError("Tournament poster must be 10MB or smaller"); return; }
+    try {
+      setPosterFile(file);
+      setPosterBase64(await compressImage(file));
+    }
     catch { setError("Failed to process image"); }
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!form.name.trim() || !form.scheduledAt) { setError("Fill in name and schedule time"); return; }
-    if (form.isPaid && (!form.entryFee || Number(form.entryFee) < 0 || !form.upiId.trim())) {
-      setError("Paid tournaments need an entry fee and UPI ID");
+    const hostUpiId = form.upiId.trim();
+    if (form.isPaid && (!form.entryFee || Number(form.entryFee) < 0 || !hostUpiId)) {
+      setError("Paid tournaments need an entry fee and the host payment UPI ID");
+      return;
+    }
+    if (form.isPaid && !/^[^@\s]+@[A-Za-z0-9._-]+$/.test(hostUpiId)) {
+      setError("Enter a valid host payment UPI ID, such as name@bank");
       return;
     }
     if (form.entryFee && !Number.isInteger(Number(form.entryFee))) {
@@ -183,31 +233,47 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
       return;
     }
     setError("");
-    create.mutate({
-      data: {
-        name: form.name.trim(),
-        type: form.type,
-        mode: form.mode,
-        mapName: maps[0] || "Bermuda",
-        matchCount,
-        maps: maps.slice(0, matchCount),
-        killPoints,
-        placements,
-        prizeDistribution: prizeRanks
-          .filter(r => Number(r.amount) > 0)
-          .map(r => ({ rank: r.rank, label: r.label, amount: Number(r.amount) })),
-        teamSize: form.teamSize,
-        entryFee: form.entryFee ? Number(form.entryFee) : null,
-        prizePool: form.prizePool ? Number(form.prizePool) : null,
-         maxSlots,
-        upiId: form.upiId || null,
-        scheduledAt: scheduledAt.toISOString(),
-        rules: form.rules || null,
-        isPaid: form.isPaid,
-        timerEnabled: form.timerEnabled,
-        isPrivate: form.isPrivate,
-      },
-    });
+    setUploadingPoster(Boolean(posterFile));
+    try {
+      const posterUrl = posterFile ? await uploadTournamentPoster(posterFile) : null;
+      const qrUrl = form.isPaid
+        ? await QRCode.toDataURL(
+            `upi://pay?pa=${encodeURIComponent(hostUpiId)}&pn=EliteFF&am=${Number(form.entryFee)}&tn=${encodeURIComponent(`Entry: ${form.name.trim()}`)}`,
+            { width: 320, margin: 2, errorCorrectionLevel: "M", color: { dark: "#0a0e27", light: "#ffffff" } },
+          )
+        : null;
+      create.mutate({
+        data: {
+          name: form.name.trim(),
+          type: form.type,
+          mode: form.mode,
+          mapName: maps[0] || "Bermuda",
+          matchCount,
+          maps: maps.slice(0, matchCount),
+          killPoints,
+          placements,
+          prizeDistribution: prizeRanks
+            .filter(r => Number(r.amount) > 0)
+            .map(r => ({ rank: r.rank, label: r.label, amount: Number(r.amount) })),
+          teamSize: form.teamSize,
+          entryFee: form.entryFee ? Number(form.entryFee) : null,
+          prizePool: form.prizePool ? Number(form.prizePool) : null,
+          maxSlots,
+          upiId: form.isPaid ? hostUpiId : null,
+          qrUrl,
+          scheduledAt: scheduledAt.toISOString(),
+          rules: form.rules || null,
+          posterUrl,
+          isPaid: form.isPaid,
+          timerEnabled: form.timerEnabled,
+          isPrivate: form.isPrivate,
+        },
+      });
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Unable to upload tournament poster");
+    } finally {
+      setUploadingPoster(false);
+    }
   }
 
   const inp = (label: string, key: keyof typeof form, type = "text", ph = "") => (
@@ -227,26 +293,59 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}>
+    <div className="fixed inset-0 z-[100] flex items-end justify-center" style={{ background: "rgba(2,6,23,0.86)", backdropFilter: "blur(8px)" }}>
         <div
-        className="w-full max-w-lg rounded-t-3xl flex flex-col animate-in slide-in-from-bottom duration-300"
-        style={{ background: "var(--th-card3)", border: "1px solid var(--th-border)", maxHeight: "96dvh", overflowY: "auto" }}
+         className="w-full max-w-lg rounded-t-[2rem] flex flex-col animate-in slide-in-from-bottom duration-300 overflow-hidden"
+         style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.99) 0%, var(--th-card3) 220px)", border: "1px solid rgba(255,107,53,0.22)", maxHeight: "96dvh", overflowY: "auto", boxShadow: "0 -18px 60px rgba(0,0,0,0.42)" }}
       >
         {/* Header */}
-        <div className="px-5 pt-4 pb-4 flex items-center gap-3 sticky top-0 z-10" style={{ background: "var(--th-card3)", borderBottom: "1px solid var(--th-input)" }}>
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(34,197,94,0.14)", border: "1px solid rgba(34,197,94,0.24)" }}>
-            <TrophyMark />
+         <div className="px-5 pt-4 pb-4 sticky top-0 z-10" style={{ background: "rgba(15,23,42,0.96)", borderBottom: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(14px)" }}>
+           <div className="flex items-start gap-3">
+             <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, rgba(255,107,53,0.2), rgba(34,197,94,0.16))", border: "1px solid rgba(255,255,255,0.12)" }}>
+               <TrophyMark />
+             </div>
+             <div className="flex-1 min-w-0">
+               <div className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#fb923c" }}>Host console</div>
+               <div className="font-display font-black text-xl text-foreground leading-tight">Build your tournament</div>
+               <div className="text-[11px] mt-0.5" style={{ color: "var(--th-muted)" }}>A clean room setup players can trust</div>
+             </div>
+             <div className="flex items-center gap-2">
+               <div className="hidden sm:flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black" style={{ color: "#4ade80", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                 <ShieldCheck size={12} /> Draft
+               </div>
+               <button aria-label="Close create tournament" onClick={() => { reset(); onClose(); }} className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/10 transition-smooth">
+                 <X size={16} className="text-muted-foreground" />
+               </button>
+             </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-display font-black text-xl text-foreground leading-tight">Create Tournament</div>
-            <div className="text-[11px] mt-0.5" style={{ color: "var(--th-muted)" }}>Set up your next competitive room</div>
+           <div className="grid grid-cols-4 gap-1.5 mt-4">
+             {[
+               { label: "Basics", icon: Users },
+               { label: "Schedule", icon: CalendarDays },
+               { label: "Matches", icon: ShieldCheck },
+               { label: "Entry", icon: CircleDollarSign },
+             ].map((step, index) => {
+               const Icon = step.icon;
+               const complete = setupSteps[index];
+               return (
+                 <div key={step.label} className="rounded-xl px-2 py-2" style={{ background: complete ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.04)", border: `1px solid ${complete ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.06)"}` }}>
+                   <div className="flex items-center gap-1.5">
+                     <Icon size={11} style={{ color: complete ? "#4ade80" : "var(--th-dim)" }} />
+                     <span className="text-[9px] font-black truncate" style={{ color: complete ? "#86efac" : "var(--th-muted)" }}>{step.label}</span>
+                   </div>
+                 </div>
+               );
+             })}
           </div>
-          <button aria-label="Close create tournament" onClick={() => { reset(); onClose(); }} className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/10 transition-smooth">
-            <X size={16} className="text-muted-foreground" />
-          </button>
+           <div className="flex items-center gap-2 mt-3">
+             <div className="h-1.5 flex-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+               <div className="h-full rounded-full transition-all duration-300" style={{ width: `${(completedSteps / setupSteps.length) * 100}%`, background: "linear-gradient(90deg, #ff6b35, #4ade80)" }} />
+             </div>
+             <span className="text-[10px] font-bold whitespace-nowrap" style={{ color: "var(--th-muted)" }}>{completedSteps}/{setupSteps.length} ready</span>
+           </div>
         </div>
 
-        <div className="p-5 flex flex-col gap-5">
+         <div className="p-4 sm:p-5 flex flex-col gap-5">
            <div className="rounded-2xl p-4 flex items-center gap-3 transition-all duration-500" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.03))", border: "1px solid rgba(34,197,94,0.2)" }}>
             <div className="flex-1">
                <div className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#4ade80" }}>Host note</div>
@@ -394,7 +493,12 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
               <div className="flex flex-col gap-3 rounded-xl p-3" style={{ background: "rgba(255,107,53,0.05)", border: "1px solid rgba(255,107,53,0.15)" }}>
                 <div className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,107,53,0.7)" }}>Paid Entry Details</div>
                 {inp("Entry Fee (₹) *", "entryFee", "number", "e.g. 50")}
-                {inp("UPI ID *", "upiId", "text", "yourname@bank")}
+                <div>
+                  {inp("Host payment UPI ID *", "upiId", "text", "yourname@bank")}
+                  <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: "var(--th-dim)" }}>
+                    Used only to generate the player payment QR. This identifier stays in host settings and is not shown to players.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -722,13 +826,13 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
           <div className="sticky bottom-0 -mx-5 -mb-5 p-5 pt-3" style={{ background: "linear-gradient(to bottom, transparent, var(--th-card3) 22%)" }}>
             <button
               onClick={handleSubmit}
-              disabled={create.isPending}
+               disabled={create.isPending || uploadingPoster}
               className="w-full h-13 rounded-2xl font-black text-base flex items-center justify-center gap-2 transition-smooth active:scale-95 disabled:opacity-50 shadow-lg"
               style={{ background: "linear-gradient(135deg, #4ade80, #16a34a)", color: "#052e16", boxShadow: "0 10px 28px rgba(34,197,94,0.22)" }}
               data-testid="create-tournament.submit_button"
             >
-              {create.isPending ? <div className="w-5 h-5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Plus size={18} />}
-              {create.isPending ? "Creating..." : "Create Tournament"}
+               {create.isPending || uploadingPoster ? <div className="w-5 h-5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Plus size={18} />}
+               {uploadingPoster ? "Uploading poster..." : create.isPending ? "Creating..." : "Create Tournament"}
             </button>
           </div>
         </div>

@@ -1,13 +1,14 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import {
   ArrowLeft, Camera, CheckCircle, Trophy, Plus, Trash2,
   X, ChevronRight, Pencil, Upload
 } from "lucide-react";
-import { useGetTournament, useGetRegistrations, useCreateResult } from "@workspace/api-client-react";
+import { useGetTournament, useGetRegistrations, useGetResults, useCreateResult } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { apiFetch } from "@/lib/auth";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface TeamEntry {
   registrationId?: number;
@@ -40,18 +41,20 @@ export function loadResultStore(id: number): TournamentResultStore | null {
 
 async function uploadResultScreenshot(file: File) {
   const contentType = file.type || "image/jpeg";
+  if (!contentType.startsWith("image/")) throw new Error("Choose an image file for the result screenshot");
+  if (file.size <= 0 || file.size > 10 * 1024 * 1024) throw new Error("Result screenshot must be 10MB or smaller");
   const response = await apiFetch("/api/storage/uploads/request-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: file.name || "match-result.jpg", size: file.size, contentType }),
+    body: JSON.stringify({ name: file.name || "match-result.jpg", size: file.size, contentType, purpose: "match-result" }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || !body.uploadURL || !body.objectPath) {
     throw new Error(body.message || `Unable to prepare result screenshot upload (${response.status})`);
   }
   const uploaded = await fetch(body.uploadURL, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
+    method: body.uploadMethod || "PUT",
+    headers: { "Content-Type": contentType, ...(body.uploadHeaders || {}) },
     body: file,
   });
   if (!uploaded.ok) throw new Error(`Result screenshot upload failed (${uploaded.status})`);
@@ -80,7 +83,12 @@ export default function UploadResults() {
     { tournamentId: id },
     { query: { enabled: true, queryKey: ["getRegistrations", id] } as any },
   );
+  const { data: dbResults = [], isLoading: resultsLoading } = useGetResults(
+    { tournamentId: id },
+    { query: { enabled: Boolean(id), queryKey: ["getResults", id] } as any },
+  );
   const createResult = useCreateResult();
+  const qc = useQueryClient();
 
   const tourneyConfig: { matchCount: number; maps: string[] } | null = (() => {
     try { const c = localStorage.getItem(`eliteff_tournament_config_${id}`); return c ? JSON.parse(c) : null; } catch { return null; }
@@ -107,6 +115,48 @@ export default function UploadResults() {
   const [savingMatch, setSavingMatch] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // The database is authoritative. localStorage remains only a short-lived
+  // cache so reloads and other devices always reflect saved result rows.
+  useEffect(() => {
+    if (resultsLoading || !Array.isArray(dbResults)) return;
+    const grouped = new Map<number, MatchData>();
+    for (const result of dbResults as any[]) {
+      const matchNumber = Number(result.matchNumber || 1);
+      const current = grouped.get(matchNumber) ?? {
+        matchNumber,
+        screenshotUrl: result.screenshotUrl ?? "",
+        uploadedAt: result.createdAt ? new Date(result.createdAt).getTime() : Date.now(),
+        entries: [] as TeamEntry[],
+      };
+      if (!current.screenshotUrl && result.screenshotUrl) current.screenshotUrl = result.screenshotUrl;
+      current.entries.push({
+        registrationId: result.registrationId,
+        squadName: result.squadName || "",
+        placement: result.placement == null ? "" : String(result.placement),
+        kills: result.kills == null ? "" : String(result.kills),
+        outcome: result.outcome === "won" || result.outcome === "lost" ? result.outcome : "completed",
+        prize: result.prize == null ? "" : String(result.prize),
+      });
+      grouped.set(matchNumber, current);
+    }
+    const matches = Array.from(grouped.values()).sort((a, b) => a.matchNumber - b.matchNumber);
+    const nextStore = matches.length
+      ? {
+          tournamentId: id,
+          tournamentName: tournament?.name ?? `Tournament #${id}`,
+          matchCount: Math.max(tourneyConfig?.matchCount ?? 1, ...matches.map(match => match.matchNumber)),
+          matches,
+        }
+      : null;
+    setStore(nextStore);
+    if (nextStore) {
+      setMatchCount(current => Math.max(current, nextStore.matchCount));
+      saveResultStore(nextStore);
+    } else {
+      localStorage.removeItem(storeKey(id));
+    }
+  }, [dbResults, resultsLoading, id, tournament?.name, tourneyConfig?.matchCount]);
 
   if (!user?.isHost) {
     return (
@@ -148,7 +198,8 @@ export default function UploadResults() {
   function handleScreenshot(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) { setFormError("Screenshot must be under 3 MB"); return; }
+    if (!file.type.startsWith("image/")) { setFormError("Choose an image file for the result screenshot"); return; }
+    if (file.size <= 0 || file.size > 10 * 1024 * 1024) { setFormError("Screenshot must be 10MB or smaller"); return; }
     const reader = new FileReader();
     reader.onload = ev => { setScreenshot(ev.target?.result as string); setFormError(""); };
     reader.readAsDataURL(file);
@@ -198,6 +249,7 @@ export default function UploadResults() {
           description: null,
         },
       } as any)));
+      await qc.invalidateQueries({ queryKey: ["getResults", id] });
 
       const matchData: MatchData = { matchNumber: editingMatch!, screenshotUrl, uploadedAt: Date.now(), entries };
       const existing = store?.matches ?? [];
@@ -414,7 +466,7 @@ export default function UploadResults() {
                   <div className="flex flex-col items-center gap-2 py-8">
                     <Camera size={28} style={{ color: "var(--th-dimmer)" }} />
                     <span className="text-sm font-semibold" style={{ color: "var(--th-dim)" }}>Tap to upload screenshot</span>
-                    <span className="text-xs" style={{ color: "var(--th-dimmer)" }}>PNG, JPG — max 3 MB · Required for every match</span>
+                    <span className="text-xs" style={{ color: "var(--th-dimmer)" }}>Any image format — max 10 MB · Required for every match</span>
                   </div>
                 )}
               </div>

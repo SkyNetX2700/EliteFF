@@ -916,6 +916,8 @@ components:
           type: ["string", "null"]
         upiId:
           type: ["string", "null"]
+        qrUrl:
+          type: ["string", "null"]
         isPaid:
           type: boolean
         timerEnabled:
@@ -966,6 +968,8 @@ components:
         posterUrl:
           type: ["string", "null"]
         upiId:
+          type: ["string", "null"]
+        qrUrl:
           type: ["string", "null"]
         isPaid:
           type: ["boolean", "null"]

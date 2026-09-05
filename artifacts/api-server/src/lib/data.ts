@@ -224,7 +224,9 @@ export function safeUser(value: any) {
 
 export function publicTournament(value: any) {
   if (!value) return null;
-  // Keep the UPI destination available for QR generation, but registration
-  // records never copy it into player-submitted data.
-  return snakeToCamel({ ...value });
+  const tournament = snakeToCamel({ ...value });
+  // The payment destination is host-only configuration. Players only need
+  // the generated QR image, never the raw UPI address.
+  delete tournament.upiId;
+  return tournament;
 }
