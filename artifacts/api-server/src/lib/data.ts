@@ -140,14 +140,15 @@ class DataQuery {
       if (this.operation === "select") {
         const requestedSortColumn = this.sort ? column(table, this.sort.field) : null;
         const sortColumn = requestedSortColumn ?? table.createdAt ?? table.id;
-        const orderExpression = this.sort
-          ? (this.sort.ascending ? asc(sortColumn) : desc(sortColumn))
-          : desc(sortColumn);
-        const rows = await db.select().from(table)
-          .where(where)
-          .orderBy(orderExpression)
-          .limit(this.maxRows ?? 100000);
-        const data = rows.map(row => toSnakeCase(row));
+        let selectQuery: any = db.select().from(table).where(where);
+        if (sortColumn) {
+          const orderExpression = this.sort
+            ? (this.sort.ascending ? asc(sortColumn) : desc(sortColumn))
+            : desc(sortColumn);
+          selectQuery = selectQuery.orderBy(orderExpression);
+        }
+        const rows = await selectQuery.limit(this.maxRows ?? 100000);
+        const data = rows.map((row: any) => toSnakeCase(row));
         if (this.countOnly) return { data: null, error: null, count: data.length };
         if (this.one) return { data: data[0] ?? null, error: null };
         return { data, error: null };

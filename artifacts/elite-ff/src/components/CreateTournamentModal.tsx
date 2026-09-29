@@ -4,6 +4,7 @@ import { useCreateTournament, type Tournament } from "@workspace/api-client-reac
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime12 } from "@/lib/dateFormat";
 import { apiFetch } from "@/lib/auth";
+import { toast } from "@/hooks/use-toast";
 import QRCode from "qrcode";
 
 interface Props { open: boolean; onClose: () => void; }
@@ -151,14 +152,23 @@ export default function CreateTournamentModal({ open, onClose }: Props) {
           return [data, ...current.filter((item: any) => item?.id !== data.id)];
         });
         qc.invalidateQueries({ queryKey: ["getTournaments"] });
-         reset();
+        toast({
+          title: "Tournament created successfully",
+          description: `${data.name} is now available in your tournament list.`,
+          className: "border-green-500/40 bg-green-950 text-green-50",
+        });
+        reset();
         onClose();
       },
       onError: (e: any) => {
         const message = e?.message || "Unable to create the tournament.";
         setError(
           message.includes("FUNCTION_INVOCATION_FAILED") || message.includes("API server could not be started")
-            ? "The tournament service is unavailable. Confirm the deployed API has DATABASE_URL and the Supabase schema, then try again."
+            ? "The tournament service could not start. Check the deployed API environment variables, especially DATABASE_URL, SUPABASE_URL, and SUPABASE_ANON_KEY."
+            : message.includes("504")
+            ? "The tournament service took too long to respond. Please try again; if it continues, verify the deployed database is reachable."
+            : message.includes("404")
+            ? "The tournament API route was not found. Republish the latest version so the API routing fix is active."
             : message,
         );
       },
