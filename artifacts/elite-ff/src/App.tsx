@@ -45,10 +45,10 @@ function AppInner() {
   return (
     <WouterRouter base={basePath}>
       <Switch>
-        <Route path="/sign-in">
+        <Route path="/sign-in/*?">
           <AuthPage kind="sign-in" basePath={basePath} />
         </Route>
-        <Route path="/sign-up">
+        <Route path="/sign-up/*?">
           <AuthPage kind="sign-up" basePath={basePath} />
         </Route>
         <Route>
