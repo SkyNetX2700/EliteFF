@@ -201,13 +201,28 @@ export async function signOut() {
 
 export function getGoogleOAuthUrl(basePath: string) {
   if (!isSupabaseConfigured()) return null;
-  const redirectTo = `${window.location.origin}${basePath || "/"}`;
-  return `${supabaseUrl}/auth/v1/authorize?provider=google&flow_type=implicit&redirect_to=${encodeURIComponent(redirectTo)}`;
+  const redirectTo = new URL(basePath || "/", window.location.origin).toString();
+  const authorizeUrl = `${supabaseUrl!.replace(/\/$/, "")}/auth/v1/authorize`;
+  return `${authorizeUrl}?provider=google&flow_type=implicit&redirect_to=${encodeURIComponent(redirectTo)}`;
+}
+
+export function consumeOAuthCallbackError() {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const queryParams = new URLSearchParams(window.location.search);
+  const error = hashParams.get("error") ?? queryParams.get("error");
+  if (!error) return null;
+
+  const description =
+    hashParams.get("error_description") ??
+    queryParams.get("error_description") ??
+    hashParams.get("msg") ??
+    queryParams.get("msg");
+  return description || `Google sign-in was not completed (${error}).`;
 }
 
 export function consumeOAuthCallback() {
-  if (!window.location.hash.includes("access_token=")) return null;
-  const params = new URLSearchParams(window.location.hash.slice(1));
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  if (!params.has("access_token")) return null;
   const accessToken = params.get("access_token");
   const refreshToken = params.get("refresh_token");
   if (!accessToken || !refreshToken) return null;

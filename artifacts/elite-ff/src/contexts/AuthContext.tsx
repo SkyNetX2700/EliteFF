@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import {
   consumeOAuthCallback,
+  consumeOAuthCallbackError,
   getGoogleOAuthUrl,
   getToken,
   hydrateCurrentSessionUser,
@@ -89,11 +90,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 60_000);
 
     void (async () => {
-      const callbackSession = consumeOAuthCallback();
+      const callbackError = consumeOAuthCallbackError();
+      const callbackSession = callbackError ? null : consumeOAuthCallback();
       const currentSession = callbackSession ?? await loadSession();
       const hydratedUser = currentSession ? await hydrateCurrentSessionUser() : null;
       if (mounted) {
         setSession(hydratedUser && currentSession ? { ...currentSession, user: hydratedUser } : currentSession);
+        if (callbackError) {
+          setAuthError(callbackError);
+          const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+          window.history.replaceState({}, document.title, `${basePath}/sign-in`);
+        }
         setAuthReady(true);
       }
     })();
@@ -176,7 +183,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle: () => {
         const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
         const oauthUrl = getGoogleOAuthUrl(basePath);
-        if (oauthUrl) window.location.assign(oauthUrl);
+        if (oauthUrl) {
+          window.location.assign(oauthUrl);
+        } else {
+          setAuthError("Google sign-in is not configured. Add the Supabase browser variables to Vercel.");
+        }
       },
       authError,
       clearAuthError: () => setAuthError(null),
