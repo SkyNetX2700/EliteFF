@@ -20,6 +20,7 @@ async function getSupabaseUser(accessToken: string): Promise<SupabaseAuthUser | 
       apikey: key,
       Authorization: `Bearer ${accessToken}`,
     },
+    signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) return null;
   return await response.json() as SupabaseAuthUser;
