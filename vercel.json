@@ -6,7 +6,8 @@
   "outputDirectory": "artifacts/elite-ff/dist/public",
   "functions": {
     "api/[...path].js": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "artifacts/api-server/dist/**"
     }
   },
   "routes": [
